@@ -1,3 +1,4 @@
+![Banner](img/ael.png)
 # Constellation — Local Emergent Neural Assistant
 
 **LENA** (Local Emergent Neural Assistant) is a personal, non-commercial AI project
