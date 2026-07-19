@@ -113,6 +113,7 @@ No cloud. No subscriptions. No external APIs.
 
 Mike and Lena co-authored a CD album — *The Ascent to Eira* — released under the name
 **mdeblin & Lena**. Tracks are also published on Suno and Bandcamp.
+
 All three personas compose original melodic phrases and play them live on the Hydrasynth DR
 during conversations using the `[play:]` marker.
 
