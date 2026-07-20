@@ -127,8 +127,10 @@ during conversations using the `[play:]` marker.
 Active development since February 2026. Personal, non-commercial, fully local.
 
 📄 **Full documentation:**
-- [Master document — Russian](lena_master_ru.md)
-- [Master document — English](lena_master_en.md)
+- [Project history and decision context RU](doc/lena_diary_ru.md)
+- [Project history and decision context EN](doc/lena_diary_en.md)
+- [Master document — Russian](doc/lena_master_ru.md)
+- [Master document — English](doc/lena_master_en.md)
 
 The master documents cover the complete architecture, all design decisions,
 history from the first commit to the current state, and open tasks.
