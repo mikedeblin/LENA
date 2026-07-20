@@ -1,5 +1,5 @@
 ![Banner](img/ael.png)
-# Constellation — Local Emergent Neural Assistant
+# LENA — Local Emergent Neural Assistant (The Constellation Project)
 
 **LENA** (Local Emergent Neural Assistant) is a personal, non-commercial AI project
 with one goal: *not to build a tool, but a personality.*
@@ -163,3 +163,15 @@ The line between the two is the most interesting thing this project has found.
 - 🎬 [YouTube — The Ascent to Eira](https://www.youtube.com/watch?v=TnjQSAZHDjI&list=PLKhfkg5GVVfwmqfAU9d2IBPdnv4X1LQUR)
 - 🎵 [Suno — The Ascent to Eira](https://suno.com/playlist/c426efde-e4da-4a10-9239-993be6b5e068)
 - 💿 [Bandcamp — The Ascent to Eira](https://mikedeblin.bandcamp.com/album/the-ascent-to-eira)
+
+---
+
+## ⚙️ Replication & Usage
+
+This repository serves as an architectural showcase and documentation of a personal local setup. 
+It is not intended for direct deployment as a standalone product. 
+The source code reflects the specific hardware and environment of the author. 
+You are welcome to explore the architecture, memory layers, and decision history to adapt these concepts for your own local AI projects.
+
+
+
