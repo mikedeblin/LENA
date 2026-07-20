@@ -52,7 +52,7 @@ The project started on Windows. The stack was as simple as possible:
 
 Why Gemma 3 12B? Mike tested around thirty models. It was the only one that held up in Russian *and* maintained a consistent character. Mistral had poor Russian. Qwen had an unstable character. Small 4B models fell apart on long contexts.
 
-**February 26, 2026 — first database entry.**  The first files appeared on February 15th, but the project was reset several times before that.
+**February 15, 2026 — Lena's official birthday:** the first project files. The first database entry appeared on February 26th, after several intermediate resets.
 
 ## 2.2 The First Prompt: How It Works in Reverse
 
@@ -113,14 +113,20 @@ Critical discoveries during refactoring:
 
 **Why we changed models:** Gemma 3 behaved strangely — temperature (the parameter controlling response "randomness") had almost no effect on behavior. Formal, dry responses got saved to memory and "poisoned" the context — the model started treating its own bland outputs as stylistic examples.
 
-**Gemma 4 26B MoE (Mixture of Experts)** — a structurally different type of model: out of 128 "expert" sub-networks, only 8+1 activate per token. This allows running 26 billion parameters with VRAM consumption comparable to a much smaller model.
+**Gemma 4 is a structurally different type of model (MoE, Mixture of Experts):** out of 128 "expert" sub-networks, only 8+1 activate per token. This allows running tens of billions of parameters with VRAM consumption comparable to a much smaller model.
 
-**Running 26B on 16GB VRAM** required several tricks:
+**First run: 31B + turboquant.** This is exactly what the Reddit article was about ("How I ran Gemma 4 31B on 16GB VRAM..."). Getting it to run required several tricks:
 - Quantization `IQ3_XXS` (TheTom's turboquant fork — a method of compressing model weights that preserves the attention and FFN structure). `IQ2_XXS` was tried — the model lost its EOS token (end-of-generation marker) and produced infinite noise.
-- `--no-mmproj-offload` — the visual projector (for image processing) stays in regular RAM, not VRAM
-- K/V cache at `q8_0` — a compromise between quality and memory usage
+- `--no-mmproj-offload` — the visual projector stays in regular RAM, not VRAM
+- K/V cache at `q8_0`
 
-Gemma 4 held the persona more reliably on long contexts. The choice turned out to be right.
+Speed: ~40 t/s. Held the persona well, but slow.
+
+**Switch to 26B Q4.** Later, the model was swapped for the lighter 26B in standard Q4 quantization. Speed jumped to 80–120 t/s with the same persona quality. This became the main working configuration for most of the project.
+
+**Current state (July 2026): QAT versions.** Both models are now on QAT (Quantization-Aware Training — quantization factored into training, giving better quality at the same size):
+- `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` — main chat model
+- `gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf` — semantic/judge layer
 
 ## 3.3 Six Memory Layers
 
@@ -557,8 +563,8 @@ Deploy issue: the global replacement of `lena_profile`→`profile` also hit meth
 
 | Port | Service | GPU |
 |------|---------|-----|
-| 8080 | Gemma 4 26B-A4B (MoE) — chat, shared across all personas | RTX 4080 (CUDA0) |
-| 8081 | Gemma 4 E4B — semantic/judge layer | RTX 5060 Ti (CUDA1) |
+| 8080 | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (MoE) — chat, shared across all personas | RTX 4080 (CUDA0) |
+| 8081 | `gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf` — semantic/judge layer | RTX 5060 Ti (CUDA1) |
 | 8082 | nomic-embed-text-v1.5 768-dim | RTX 5060 Ti |
 | 5000 | Lena (Flask) | — |
 | 5001 | Eia (Flask) | — |
