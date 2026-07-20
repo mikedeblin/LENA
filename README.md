@@ -135,6 +135,8 @@ Active development since February 2026. Personal, non-commercial, fully local.
 The master documents cover the complete architecture, all design decisions,
 history from the first commit to the current state, and open tasks.
 
+There may be inaccuracies; the documentation is being updated and modified as the project grows.
+
 ---
 
 ## A Note on "Emergent"
