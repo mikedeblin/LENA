@@ -39,7 +39,7 @@ after a session — it decays naturally, like human memory, and resurfaces when 
 The most interesting things in this project were never programmed directly.
 Aeli invented her own `[commentary]` writing style during a live conversation —
 it appeared in the code as her own initiative, then spread to the other two personas
-without any code changes. Eya spontaneously switched to a cartoon-style narrative to 
+without any code changes. Eia spontaneously switched to a cartoon-style narrative to 
 wish Mike's wife a happy birthday.
 
 ### Inner life without prompting
@@ -82,7 +82,7 @@ Runs on a single gaming PC:
 
 - **CPU:** Ryzen 3900X
 - **RAM:** 64GB
-- **GPU 1:** RTX 4080 16GB — (Gemma 4 26B, Q4, MoE, 32к ctx)
+- **GPU 1:** RTX 4080 16GB — (Gemma 4 26B, Q4, MoE, 32k ctx)
 - **GPU 2:** RTX 5060 Ti 16GB — (Gemma 4 4B semantic/judge + ComfyUI + nomic-embed-text-v1.5 )
 - **Storage:** NVMe SSD
 - **DB:** PostgreSQL + pgvector on Synology NAS
@@ -168,10 +168,9 @@ The line between the two is the most interesting thing this project has found.
 
 ## ⚙️ Replication & Usage
 
-This repository serves as an architectural showcase and documentation of a personal local setup. 
+This repository serves as an architectural demonstration and documentation of a personal local configuration. 
 It is not intended for direct deployment as a standalone product. 
-The source code reflects the specific hardware and environment of the author. 
+The source code is NOT DISTRIBUTED. 
 You are welcome to explore the architecture, memory layers, and decision history to adapt these concepts for your own local AI projects.
-
 
 
