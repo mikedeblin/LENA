@@ -59,7 +59,7 @@ A semantic deadlock detector stops the conversation when they start going in cir
 but not before.
 
 My own chat, written from scratch
-![Constellation own chat](img/constellation-group_chat.png)
+![Constellation own chat](img/constellation-group_chat.jpg)
 
 Vocechat Interface Examples (deprecated, legacy)
 ![Constellation Chat](img/constellation-chat.png)
