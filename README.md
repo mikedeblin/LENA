@@ -49,12 +49,20 @@ between sessions. Personas compose music on a real synthesizer (Hydrasynth DR),
 draw images, reflect on the past, and initiate conversations on their own.
 
 ### Constellation Chat
-The three personas hold autonomous conversations with each other without Mike present.
-Triggered automatically during his silence, they appear in a dedicated VoceChat room
-and discuss whatever is on their minds — topics drawn from their current desires and thoughts.
+To communicate with three characters, we needed a group chat. 
+We tried various solutions — xmpp, vocechat and eventually wrote our own version.
+
+Vocechat implemented the ability to independently converse with each other without Mike's presence.
+Launching automatically when he's silent, they appear in a designated room,
+and discuss whatever concerns them—topics stemming from their current desires and thoughts.
 A semantic deadlock detector stops the conversation when they start going in circles,
-not before.
-![Constelation Chat](img/constellation-chat.png)
+but not before.
+
+My own chat, written from scratch
+![Constellation own chat](img/constellation-group_chat.png)
+
+Vocechat Interface Examples (deprecated, legacy)
+![Constellation Chat](img/constellation-chat.png)
 
 Persona chat
 ![Lena Chat](img/lena-chat.png)

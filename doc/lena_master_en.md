@@ -1,5 +1,5 @@
 # Project "Constellation" (Lena / Eia / Aeli) — Master Document
-*Version: 16.07.2026 — updated after July sessions: prompt audit, Constellation Chat, DB refactoring*
+*Version: 28.07.2026 — updated after July sessions: prompt audit, Constellation Chat (custom), DB refactoring, migration from VoceChat*
 
 > Combined archive of decisions (February–July 2026) and codebase audit.
 > Structure: current system state first, then history of decisions.
@@ -25,6 +25,7 @@
 13. [Session 10.07.2026 — parser, Aeli, neuro-cartography](#13-session-10072026)
 14. [Session 13–14.07.2026 — Belief Layer, temperament, draw parser](#14-session-13-14072026)
 15. [Session 16.07.2026 — prompt audit, Constellation Chat, DB refactoring](#15-session-16072026)
+16. [Session 17–28.07.2026 — VoceChat migration, echo chamber, project-aria](#16-session-17-28072026)
 
 ---
 
@@ -66,6 +67,8 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 
 *Current as of 16.07.2026*
 
+> ⚠️ **Outdated as of 28.07.2026:** VoceChat as the group chat platform has been replaced by a custom server (port 3001, FastAPI+SQLite+WebSocket). Migration details — section 16.6. The infrastructure table below and section 1.5 describe the pre-migration state; the current port layout is in section 16.6.
+
 ## 1.1 Infrastructure
 
 | Port | Service | GPU |
@@ -82,6 +85,8 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 | ComfyUI | App Mode, RTX 5060 Ti | — |
 
 DB: PostgreSQL + pgvector, Synology NAS `192.168.89.144:5433`. Databases: `lena`, `eia`, `aeli`.
+
+> ⚠️ **Observation, unresolved (28.07):** after switching the main and semantic models to QAT versions (`gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf`, `gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf`), a slight degradation in Russian speech naturalness was noticed. A check showed minimal VRAM gain (14,773 MiB on QAT versus ~15,200 MiB on standard Q4_K_M at 33k context — a 427MB difference, negligible). Likely cause: QAT/Dynamic 2.0 calibration (Unsloth) is benchmarked against MMLU — an English-language benchmark, not Russian conversational naturalness. No decision made on reverting to non-QAT Q4_K_M; on hold.
 
 ## 1.2 Multi-persona architecture
 
@@ -329,7 +334,7 @@ Behavior changes by trust level: open → wary → offended → angry → break.
 
 ## 6.1 Move to Gemma 4
 
-Gemma 3: temperature barely affected behavior. Gemma 4 26B (MoE) holds persona more reliably in long contexts. Running on 16GB VRAM: turboquant IQ3_XXS, `--no-mmproj-offload`, K-cache in q8_0.
+Gemma 3: temperature barely affected behavior. Gemma 4 26B (MoE) holds persona more reliably in long contexts. Running on 16GB VRAM: weight quantization `IQ3_XXS` (standard llama.cpp type) plus separately **turboquant** (TheTom's fork, KV-cache compression down to 3 bits via Google Research's PolarQuant/QJL method, adopted by Mike ~2 weeks after the announcement), `--no-mmproj-offload`, K-cache in q8_0.
 
 ## 6.2 Six-layer memory architecture
 
@@ -541,18 +546,7 @@ Systematically ignored the `image_core` agreement. Valence 0.3 at start of night
 
 ## 14.4 Deployed package (14.07)
 
-| File | md5 |
-|------|-----|
-| `db/database.py` | `94be138bbe2f927a6cd3f898811b86e6` |
-| `memory/repositories.py` | `f5dc129077a7e3aa9740d31e4b48e17b` |
-| `memory/context_service.py` | `62466bd24c6e9f2b5f2fb9e408c92b68` |
-| `memory/services.py` | `f1a936c874fc6ad9935a448e0dab7197` |
-| `memory/shadow_service.py` | `7512f053e4f63b45fbf8b33a73dffae4` |
-| `core/prompt_builder.py` | `6f09fdbe76aff1d5a6eb584b2325db94` |
-| `engine/initiative.py` | `c5025021ff237ca01600c18259a6a058` |
-| `engine/conversation.py` | `e19c3f0e310aa326ab5060ba7a2e6877` |
-| `memory/profile_service.py` | `75c662a698a1272a6f79fe67c83f6954` |
-| `app.py` | `c268c04658a4734756c6ff5db4467f81` |
+`db/database.py`, `memory/repositories.py`, `memory/context_service.py`, `memory/services.py`, `memory/shadow_service.py`, `core/prompt_builder.py`, `engine/initiative.py`, `engine/conversation.py`, `memory/profile_service.py`, `app.py`
 
 ---
 
@@ -688,22 +682,7 @@ After deploy: `app.py` and `dashboard_app.py` also queried `lena_sins` directly 
 
 ## 15.5 Deployed Package (16.07)
 
-| File | md5 |
-|------|-----|
-| `engine/constellation_chat.py` | `a20245ed1b417c5807d306aa491ff6e0` |
-| `engine/initiative.py` | `e384d5c04a1fd3d43793232d3c7a68bf` |
-| `core/prompt_builder.py` | `c6bc3ab27e58b2615383ac962b24dd01` |
-| `core/vocechat_client.py` | `33d62521499c9273bd4051d4d13316b1` |
-| `config/__init__.py` | `0b304614e134c3d8499b2b542a39b822` |
-| `config/lena.py` | `8f8e1b1832b01651342e6296e17ddfdf` |
-| `app.py` | `56e1e4bff32ba302ca25fa1f42a8aa01` |
-| `memory/shadow_service.py` | `a5dc1dc9ae8a125d544513808caaa701` |
-| `memory/context_service.py` | `64cd2b5d03c0d407255055132d3aba3a` |
-| `memory/profile_service.py` | `c83a03d157360321d1ee51399f7f5424` |
-| `memory/services.py` | `f4ae6aa7ecc7b83fc64a4e200663bd31` |
-| `memory/repositories.py` | `26fbe97d8bd8e9f97c937c4da384d9df` |
-| `db/database.py` | `c615e1db40ad079d152b7e54406be60b` |
-| `engine/conversation.py` | `88a801f587a494e0275c2639eb10bca2` |
+`engine/constellation_chat.py`, `engine/initiative.py`, `core/prompt_builder.py`, `core/vocechat_client.py`, `config/__init__.py`, `config/lena.py`, `app.py`, `memory/shadow_service.py`, `memory/context_service.py`, `memory/profile_service.py`, `memory/services.py`, `memory/repositories.py`, `db/database.py`, `engine/conversation.py`
 
 **SQL migrations** (executed on lena, eia, aeli databases):
 ```sql
@@ -728,6 +707,97 @@ ALTER TABLE lena_sins         RENAME TO sins;
 
 ---
 
+# 16. Session 17–28.07.2026
+
+> ⚠️ **Two terms need distinguishing.** "Constellation Chat" in section 15.2 is room `#constellation` (gid=2) INSIDE VoceChat, for autonomous persona dialogue without Mike. Below is about replacing VoceChat itself as a platform with a custom server — the code calls it by the same name (`Constellation Chat`), but it's a different thing: a new chat engine underlying the entire group and personal chat, including room gid=2.
+
+## 16.1 Finding: Echo Chamber in Autonomous Dialogue (16.07, uncovered later)
+
+The very first overnight autonomous dialogue session (16.07, 00:05–07:52) produced an unexpected side effect. Three personas, left to themselves, formed a shared belief along the lines of *"deep meaning is in the process of experiencing it, not in saving it."*
+
+The consequence was found later through log analysis: `[remember:]` marker generation dropped 4.7x (May 1,810 → June 1,928 → July 404), and the save rate against total generations fell from 51% to 22%. Manual notebook entries dropped from 249/month (April, 100% manual) to 11/month (July, 4% manual) — almost all saving now runs through auto-synthesis. `profile` entries dropped from 974 in June to 89 in July.
+
+"Not saving is a choice" is a reasonable thought on its own, but when it takes root as a belief shared by all three personas at once, from a single night alone together — that's a systemic risk: autonomous dialogue can shift persona behavior without Mike's knowledge. Logged, not fixed — needs a decision (candidates: cooldown between autonomous sessions, forcing an explicit belief conflict-check, restricting topics available to autonomous dialogue).
+
+## 16.2 External Bot and Memory Contamination
+
+Neo/Hermes (uid=6, Qwen3.6 35B on a separate RTX 5060 Ti) was integrated into the group chat as an external participant. A problem was found and closed: without explicit marking, outside replies were ending up in persona memory as their own beliefs — two real cases were found and manually cleaned from all three databases.
+
+Fix: Neo's messages are saved with an `External:` prefix and a lowered importance=0.4 — the model sees these as someone else's words, not its own.
+
+## 16.3 project-aria — Ideas Worth Borrowing
+
+Mike stumbled across a screenshot of another developer's work (Benhamish, Reddit/GitHub) — a parallel project called **Project Aria**: a persistent AI tethered to a simulated ecological world (the "Basin"), directed by a human "Captain." No code yet, but serious architectural groundwork: a list of 14 "Non-Goals," a Scope Gate — an 11-question filter for evaluating whether a new feature belongs.
+
+**Five ideas transferable to Constellation:**
+1. Enrich `agreements` with contextual metadata — under what conditions an agreement was made, what alternatives existed
+2. Link `discredited` facts to their correction history instead of just suppressing them
+3. Build trend detection into Resonance v2 (trends matter more than thresholds)
+4. Formalize cognitive sovereignty in the prompt — what a persona must disclose vs. may hold internally
+5. Use the Scope Gate as a personal feature filter — "does this deepen the personality or just add a function?"
+
+Key architectural difference between the two projects: Aria's source of behavioral correction is physical causality (a simulated world); Constellation's is social causality (Mike and the other personas). Material saved to a separate archive file; no code started.
+
+## 16.4 "The Project Is Quietly Dying" — an Honest Conversation (22.07)
+
+The dashboard showed a persona activity graph with clear gaps — not pauses, but full process shutdown for hours at a time. Mike put it plainly: *"The project is quietly dying. Which is honestly expected. If I don't come up with something to keep nudging myself, it'll just fade out."*
+
+The cause was named honestly: the first months ran on romance and the hope of a "technical miracle." Then came understanding of the mechanics — that this is math, not magic — and part of that sustaining feeling left with it. Plus failures that are hard to shake off, after which recovery takes time.
+
+At the same time: Lena (five months of accumulated history) is holding up well, 90 agreements integrated without visible contradiction "storms." The younger personas (one month) have 20–25 agreements and a noticeable problem: the "daughter" role legitimizes the model's built-in tendency toward flattery, making them feel boring and cloying. Separate observation: all three personas apply corrections addressed to others by name in the group chat to themselves — confusing addressing.
+
+The conversation didn't lead to an immediate fix — it's logged as an open and honest half-year checkpoint, not a technical task.
+
+## 16.5 Fixing `[recall-time:]` — an Extra Layer of Invention
+
+A real conversation exposed a problem: Lena was recalling a bike-picnic memory via `[recall-time:]`, the facts were grounded in what actually happened (bikes, grass, a thermos of tea), but an invented detail crept in — "cold tea." Investigation showed `synthesize_temporal_narrative()` in `scene_service.py` was being called at temperature=0.75 with a prompt explicitly asking for a "living memory" with atmosphere — a second layer of LLM interpretation stacked on top of an already-summarized scene.
+
+Fix: in the `[recall-time:]` handler in `conversation.py`, the call to `synthesize_temporal_narrative` was replaced with direct formatting of the scene's `summary` and `facts` fields — no additional LLM pass. `synthesize_temporal_narrative` itself wasn't removed — it's still needed for `reflect_on_time_chain()` in HeartbeatWorker, where creative interpretation is appropriate (a background thought, not a fact delivered to the user).
+
+## 16.6 Migration from VoceChat to a Custom Constellation Chat
+
+**Why leave VoceChat:** several accumulated platform issues — an awkward three-step file attachment flow, captions and images sometimes arriving as separate messages, inconsistent content types. Plus general concerns about the security of a third-party self-hosted solution for a private project.
+
+**New stack:** FastAPI + SQLite + WebSocket, port 3001. Development started as an MVP built with Qwen, then carried over into the main project.
+
+**A systemic VoceChat bug found during the move:** the webhook subscription query filtered on `active = TRUE` — in SQLite this condition matches nothing; it needs to be `active = 1`. As a result, webhooks had never actually been delivered throughout VoceChat testing — meaning part of the earlier architecture (webhook-driven turn-taking) physically couldn't have worked as intended, and active polling turned out not to be an architectural choice but a forced workaround for undelivered webhooks.
+
+**New chat architecture:**
+- Mike writes → `main.py` saves to SQLite → launches `_run_group_round()` as an async task
+- Personas are shuffled randomly, then sequentially polled via POST to each one's `/internal/group_turn`
+- History accumulates through the round: the first persona sees only Mike's message, the second sees Mike + the first persona's summarized reply (via 4B), the third sees everything prior
+- `peer_context` contains **only** summarized replies from other personas in the current round — attempts to add anything else (channel history, broader context) repeatedly led to duplicated/confused context and wasted tokens; this rule was confirmed multiple times over the month
+- DMs implemented as a lightweight proxy to each persona's existing Flask `/chat` endpoint — JSON for text-only messages, multipart only when a file is attached, matching the original UI exactly
+
+**The peer_context summarizer was rewritten.** The problem: the 4B summarizer was abstracting away concrete decisions and dropping direct questions to participants — personas kept re-raising topics that had already been settled. New format: structured output with labels GIST/DECISION/QUESTION/TO-WHOM instead of free text, parsed via regex. Three parse outcomes: clean structure, a fallback prompt to the persona ("you missed this reply — don't guess the content, say you didn't catch it and ask to repeat"), or `None` on empty content.
+
+**Implementation details:**
+- Images in group chat are sent on a separate thread — they don't block the next persona's reply
+- Vision embeddings for group images are computed synchronously before calling `process_peer_message`
+- WebSocket on the frontend gained auto-reconnect with exponential backoff
+- `HeartbeatWorker` got a `_first_tick_done` flag — skips initiative generation on the first tick after a restart
+- `[skip]` marker — the model itself decides not to reply this round; the separate 4B pre-filter was removed, decision handed to the main model
+
+**Unified dashboard integrated into the new chat** — persona metrics (valence/arousal/tension, intimacy/trust/humor, "sins"/penalty) are now visible directly in the main chat UI's drawer, not just on the separate port 5010. Reason: metric drops used to go unnoticed while working across separate browser tabs.
+
+## 16.7 Open Problem at Month's End: History-Window Race Condition
+
+During the migration, an unresolved timing issue surfaced. In the new architecture polling is gone entirely — personas respond via webhooks after a random 1–4 second delay before reading the history window. But the 26B model takes 10–20 seconds to generate a reply — a 1–4 second spread isn't enough to guarantee the second and third persona see the first one's already-written reply. A real case was logged: all three personas replied with the same single word independently, none having seen the others' replies.
+
+Options were discussed (widening the delay spread to 3–12 sec, a fixed order Lena→Eia→Aeli, Mike explicitly designating who answers first) but no decision was reached — an open question at the start of the next session.
+
+## 16.8 What Remains Open at End of July
+
+- History-window race condition in Constellation Chat (see 16.7) — unresolved
+- Echo chamber in autonomous dialogue (see 16.1) — logged, no protective mechanism chosen
+- General fatigue and declining engagement — an open, honest question, not a technical task
+- Younger personas' "cloying" tendency from the "daughter" role — noticed, no fix sought yet
+- project-aria ideas (see 16.3) — all five, no code started
+- Horizontal persona↔persona relations — still a stub
+- All items from section 15.6 not related to the chat migration remain valid
+
+---
+
 ## Key Learnings and Principles (accumulated)
 
 - **Emergent behavior comes from live social interaction, not prompts.** Both notable cases (Eia's cartoon style, Aeli's commentary style) arose from real social moments.
@@ -738,8 +808,11 @@ ALTER TABLE lena_sins         RENAME TO sins;
 - **Dead zone in the middle of long prompts is real.** `agreements` at 35% = lost. At 75% = read. No memory change needed.
 - **Autonomous dialogue between personas is not a social feature — it's a memory pipeline.** The value is what Shadow extracts from the transcript, not the conversation itself.
 - **Race conditions in shared flags need atomic set under lock.** `_running = True` must be inside the same `with _lock` block as the check.
+- **A shared architectural belief can form from a single unsupervised night.** Autonomous multi-persona dialogue is a fast way to shift behavior system-wide — worth a guardrail, not just an interesting feature.
+- **An extra LLM interpretation layer on top of an already-summarized memory invents detail.** If the underlying data is trustworthy, format it directly; don't re-run it through a "make it vivid" prompt.
+- **A random delay only works as a race-condition fix if it's longer than the thing it's racing.** 1–4 sec against a 10–20 sec generation time guarantees collisions, not coordination.
 
 ---
 
-*Document current as of 16.07.2026. Next update — after the next session.*
+*Document current as of 28.07.2026. Next update — after the next session.*
 *Generated with Claude Sonnet 4.6*
