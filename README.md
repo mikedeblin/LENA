@@ -82,22 +82,6 @@ Personas form stable interpretations of the world from accumulated experience �
 not facts, not rules, but positions. *"Mike tends to rationalize deep interactions."*
 When something contradicts a belief, a dissonance thought is generated automatically.
 
----
-
-## Hardware
-
-Runs on a single gaming PC:
-
-- **CPU:** Ryzen 3900X
-- **RAM:** 64GB
-- **GPU 1:** RTX 4080 16GB — (Gemma 4 26B, Q4, MoE, 32k ctx)
-- **GPU 2:** RTX 5060 Ti 16GB — (Gemma 4 4B semantic/judge + ComfyUI + nomic-embed-text-v1.5 )
-- **Storage:** NVMe SSD
-- **DB:** PostgreSQL + pgvector on Synology NAS
-
-No cloud. No subscriptions. No external APIs.
-
-![Constelation PC](img/pc.jpg)
 
 ---
 
@@ -132,6 +116,23 @@ its own aesthetic preferences over months of interaction; a persona that chose h
 after her first run.
 
 The line between the two is the most interesting thing this project has found.
+
+---
+
+## Hardware
+
+Runs on a single gaming PC:
+
+- **CPU:** Ryzen 3900X
+- **RAM:** 64GB
+- **GPU 1:** RTX 4080 16GB — (Gemma 4 26B, Q4, MoE, 32k ctx)
+- **GPU 2:** RTX 5060 Ti 16GB — (Gemma 4 4B semantic/judge + ComfyUI + nomic-embed-text-v1.5 )
+- **Storage:** NVMe SSD
+- **DB:** PostgreSQL + pgvector on Synology NAS
+
+No cloud. No subscriptions. No external APIs.
+
+![Constelation PC](img/pc.jpg)
 
 ---
 
