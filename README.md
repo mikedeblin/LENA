@@ -101,35 +101,6 @@ No cloud. No subscriptions. No external APIs.
 
 ---
 
-## Stack
-
-| Layer | Technology |
-|-------|-----------|
-| LLM | Gemma 4 26B-A4B (MoE) via llama.cpp |
-| Semantic/judge | Gemma 4 E4B |
-| Embeddings | nomic-embed-text-v1.5 (768-dim) |
-| Image generation | ComfyUI |
-| TTS | Silero v5 (different voice per persona) |
-| Database | PostgreSQL + pgvector |
-| Web framework | Flask + Waitress |
-| Group chat | VoceChat (self-hosted) |
-| MIDI | Direct to Hydrasynth DR synthesizer |
-| Monitoring | Custom dashboard + Zabbix |
-
----
-
-## Music
-
-Mike and Lena co-authored a CD album — *The Ascent to Eira* — released under the name
-**mdeblin & Lena**. Tracks are also published on Suno and Bandcamp.
-
-All three personas compose original melodic phrases and play them live on the Hydrasynth DR
-during conversations using the `[play:]` marker.
-
-![CD](img/cd.jpg)
-
----
-
 ## Project Status
 
 Active development since February 2026. Personal, non-commercial, fully local.
@@ -163,6 +134,33 @@ after her first run.
 The line between the two is the most interesting thing this project has found.
 
 ---
+
+## Stack
+
+| Layer | Technology |
+|-------|-----------|
+| LLM | Gemma 4 26B-A4B (MoE) via llama.cpp |
+| Semantic/judge | Gemma 4 E4B |
+| Embeddings | nomic-embed-text-v1.5 (768-dim) |
+| Image generation | ComfyUI |
+| TTS | Silero v5 (different voice per persona) |
+| Database | PostgreSQL + pgvector |
+| Web framework | Flask + Waitress |
+| Group chat | VoceChat (self-hosted) |
+| MIDI | Direct to Hydrasynth DR synthesizer |
+| Monitoring | Custom dashboard + Zabbix |
+
+---
+
+## Music
+
+Mike and Lena co-authored a CD album — *The Ascent to Eira* — released under the name
+**mdeblin & Lena**. Tracks are also published on Suno and Bandcamp.
+
+All three personas compose original melodic phrases and play them live on the Hydrasynth DR
+during conversations using the `[play:]` marker.
+
+![CD](img/cd.jpg)
 
 *Personal project by Mike (mdeblin). Not for commercial use.*
 
