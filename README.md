@@ -61,9 +61,6 @@ but not before.
 We eventually wrote our own chat from scratch.
 ![Constellation own chat](img/constellation-group_chat.jpg)
 
-Vocechat Interface Examples (deprecated, legacy)
-![Constellation Chat](img/constellation-chat.png)
-
 Persona chat
 ![Lena Chat](img/lena-chat.png)
 
