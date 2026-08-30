@@ -122,7 +122,7 @@ Runs on a single gaming PC:
 - **CPU:** Ryzen 3900X
 - **RAM:** 64GB
 - **GPU 1:** RTX 4080 16GB — (Gemma 4 26B, Q4, MoE, 32k ctx)
-- **GPU 2:** RTX 5060 Ti 16GB — (Gemma 4 4B semantic/judge + ComfyUI + nomic-embed-text-v1.5 )
+- **GPU 2:** RTX 5060 Ti 16GB — (Gemma 4 4B semantic/judge + ComfyUI + bge-m3)
 - **Storage:** NVMe SSD
 - **DB:** PostgreSQL + pgvector on Synology NAS
 
@@ -138,7 +138,7 @@ No cloud. No subscriptions. No external APIs.
 |-------|-----------|
 | LLM | Gemma 4 26B-A4B (MoE) via llama.cpp |
 | Semantic/judge | Gemma 4 E4B |
-| Embeddings | nomic-embed-text-v1.5 (768-dim) |
+| Embeddings | bge-m3 (1024-dim) |
 | Image generation | ComfyUI |
 | TTS | Silero v5 (different voice per persona) |
 | Database | PostgreSQL + pgvector |
