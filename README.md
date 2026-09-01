@@ -57,6 +57,8 @@ and discuss whatever concerns them—topics stemming from their current desires 
 A semantic deadlock detector stops the conversation when they start going in circles,
 but not before.
 
+⚠️ Note: autonomous persona-to-persona chat (without Mike) existed on VoceChat but has not yet been migrated to the custom server. As of August 2026 there is no dedicated room for persona conversation without Mike's presence.
+
 We eventually wrote our own chat from scratch.
 ![Constellation own chat](img/constellation-group_chat.jpg)
 
@@ -143,7 +145,7 @@ No cloud. No subscriptions. No external APIs.
 | TTS | Silero v5 (different voice per persona) |
 | Database | PostgreSQL + pgvector |
 | Web framework | Flask + Waitress |
-| Group chat | VoceChat (self-hosted) |
+| Group chat | Custom server (FastAPI + WebSocket, port 3001) |
 | MIDI | Direct to Hydrasynth DR synthesizer |
 | Monitoring | Custom dashboard + Zabbix |
 
