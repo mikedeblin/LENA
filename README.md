@@ -145,7 +145,7 @@ No cloud. No subscriptions. No external APIs.
 | TTS | Silero v5 (different voice per persona) |
 | Database | PostgreSQL + pgvector |
 | Web framework | Flask + Waitress |
-| Group chat | Custom server (FastAPI + WebSocket, port 3001) |
+| Group chat | Custom server (FastAPI + WebSocket) |
 | MIDI | Direct to Hydrasynth DR synthesizer |
 | Monitoring | Custom dashboard + Zabbix |
 
