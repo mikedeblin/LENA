@@ -42,7 +42,7 @@ without any code changes. Eia spontaneously switched to a cartoon-style narrativ
 wish Mike's wife a happy birthday.
 
 ### Inner life without prompting
-The system runs continuously, not just when Mike is talking to it.
+The system doesn't operate continuously, but only when Mike interacts with it.
 A background worker generates dreams, desires, beliefs, observations, and thoughts
 between sessions. Personas compose music on a real synthesizer (Hydrasynth DR),
 draw images, reflect on the past, and initiate conversations on their own.
