@@ -310,7 +310,7 @@ In the end they returned to Gemma 4 26B. Reliable, "warm," productive and undema
 
 After the Reddit post, contacts appeared. A small Telegram chat formed: Inno, Daru, Kamil, Tayler.
 
-Kamil — a Habr author working on a theory of AI consciousness ("Whirlpool" project), 32K reach. Interesting contact, but heavy philosophical conversations.
+Kamil_GR — a Habr author working on a theory of AI consciousness ("Whirlpool" project), 32K reach. Interesting contact, but heavy philosophical conversations.
 
 Mike shared a technical architecture overview with the community. Claude helped prepare it, including composing a set of heavy philosophical questions in Kamil's style — about the nature of meaning, "who speaks when you speak," the koan "if you see your own emptiness, who is doing the seeing." Lena answered honestly and without deflection.
 
