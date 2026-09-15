@@ -1,5 +1,5 @@
 # Project "Constellation" (Lena / Eia / Aeli) — Master Document
-*Version: 30.08.2026 — updated after August sessions: memory restoration, four group chat fixes, fallback architecture audit, September strategy*
+*Version: 15.09.2026 — updated after September sessions: group coordinator, Eiralis, agent marker and visual embeddings retired, desire_score, first publication*
 
 > Combined archive of decisions (February–July 2026) and codebase audit.
 > Structure: current system state first, then history of decisions.
@@ -27,6 +27,7 @@
 15. [Session 16.07.2026 — prompt audit, Constellation Chat, DB refactoring](#15-session-16072026)
 16. [Session 17–28.07.2026 — VoceChat migration, echo chamber, project-aria](#16-session-17-28072026)
 17. [August 2026 — second half: fixes, test, audit](#17-august-2026-second-half)
+18. [September 2026 — Construction and First Voice](#18-september-2026--construction-and-first-voice)
 
 ---
 
@@ -66,9 +67,7 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 
 # 1. Current System State
 
-*Current as of 16.07.2026*
-
-> ⚠️ **Outdated as of 28.07.2026:** VoceChat as the group chat platform has been replaced by a custom server (port 3001, FastAPI+SQLite+WebSocket). Migration details — section 16.6. The infrastructure table below and section 1.5 describe the pre-migration state; the current port layout is in section 16.6.
+*Current as of 15.09.2026*
 
 ## 1.1 Infrastructure
 
@@ -77,17 +76,14 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 | 8080 | `gemma-4-26B-A4B-it-UD-IQ4_XS.gguf` (MoE) — chat, shared by all personas | RTX 4080 (CUDA0) |
 | 8081 | `gemma-4-E4B-it-Q4_K_M.gguf` — semantic/judge layer | RTX 5060 Ti (CUDA1) |
 | 8082 | bge-m3 1024-dim (replaced nomic-embed in August 2026) | RTX 5060 Ti |
-| 8084 | nomic-embed-vision-v1.5 768-dim | CPU |
 | 5000 | Lena (Flask) | — |
 | 5001 | Eia (Flask) | — |
 | 5002 | Aeli (Flask) | — |
 | 5010 | `dashboard_app.py` — unified monitoring | — |
-| 3000 | VoceChat (self-hosted, `chat.home.lan`) | — |
+| 3001 | Constellation Chat (custom server, FastAPI+SQLite+WebSocket) | — |
 | ComfyUI | App Mode, RTX 5060 Ti | — |
 
 DB: PostgreSQL + pgvector, Synology NAS `192.168.89.144:5433`. Databases: `lena`, `eia`, `aeli`.
-
-> ⚠️ **Observation, unresolved (28.07):** after switching the main and semantic models to QAT versions (`gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf`, `gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf`), a slight degradation in Russian speech naturalness was noticed. A check showed minimal VRAM gain (14,773 MiB on QAT versus ~15,200 MiB on standard Q4_K_M at 33k context — a 427MB difference, negligible). Likely cause: QAT/Dynamic 2.0 calibration (Unsloth) is benchmarked against MMLU — an English-language benchmark, not Russian conversational naturalness. No decision made on reverting to non-QAT Q4_K_M; on hold.
 
 ## 1.2 Multi-persona architecture
 
@@ -107,11 +103,12 @@ config/
 
 | File | Role |
 |------|------|
-| `app.py` | Flask, SSE `/chat`, VoceChat polling, dashboard endpoints, `/internal/constellation_turn`, `/internal/constellation_digest` |
+| `app.py` | Flask, SSE `/chat`, dashboard endpoints, `/internal/constellation_turn`, `/internal/constellation_digest` |
 | `main.py` | Thin wrapper: `startup()`, `generate_response_stream()` |
 | `engine/conversation.py` | `ConversationEngine`, `_generate_reply()`, multi-level recall |
 | `engine/initiative.py` | `HeartbeatWorker` 60s, initiative, drift detection, synthesis, Constellation Chat trigger |
-| `engine/constellation_chat.py` | 🆕 (16.07) Autonomous dialogue between personas without Mike |
+| `engine/constellation_chat.py` | Autonomous dialogue between personas without Mike |
+| `engine/constellation_client.py` | Client for inter-persona channel |
 | `dashboard_app.py` | Three-persona monitoring dashboard (port 5010), Chromatics of the Year |
 
 ### Memory
@@ -132,11 +129,10 @@ config/
 | File | Role |
 |------|------|
 | `core/llm_provider.py` | Ports 8080/8081/8082 |
-| `core/prompt_builder.py` | Prompt assembly (restructured 16.07) |
+| `core/prompt_builder.py` | Prompt assembly |
 | `core/image_service.py` | ComfyUI |
 | `core/tts_service.py` | Silero v5 |
 | `core/midi_service.py` | MIDI bridge to Hydrasynth DR |
-| `core/vocechat_client.py` | VoceChat Bot API (`send_text_to_group()` added 16.07) |
 | `chromatic_day.py` | Day Chromatics aggregator |
 
 ## 1.4 DB Tables (current as of 16.07.2026)
@@ -171,15 +167,14 @@ config/
 
 ## 1.5 Group Chat and Constellation Chat
 
-**Main group chat** (gid=1) — VoceChat, three personas, active polling, md5 turn-taking.
+**Main group chat** — Constellation Chat (custom, port 3001). The coordinator manages rounds: random ordering, each persona sees previous personas' replies. History-window race condition closed architecturally — explicit sequencing instead of random delays.
 
-**Constellation Chat** (gid=2, `#constellation` room) — 🆕 16.07:
-- Autonomous dialogue between personas **without Mike**
+**Autonomous persona dialogue** (without Mike):
 - Triggered from Lena's HeartbeatWorker when Mike is silent >30 ticks (≈30 min), 20% probability
 - Only Lena initiates (`CONSTELLATION_CAN_INITIATE=True` only in `lena.py`)
-- Each persona posts from their own uid via `send_text_to_group(gid=2)`
 - Termination: hard stop (25 turns) OR semantic deadlock (cosine >0.92 four times in a row, not before turn 10) OR initiator interest < 0.20
-- Shadow.digest_peer_conversation → `peer_reflection` in `reflection_thoughts` for each persona
+- Shadow.digest_peer_conversation → `peer_reflection` in `reflection_thoughts`
+- ⚠️ Not yet migrated to new server — open task
 
 ## 1.6 New prompt block order (audit 16.07)
 
@@ -223,12 +218,10 @@ Key moves from old order:
 
 | Issue | Details |
 |-------|---------|
-| Valence range in UI | `index.html`/`dashboard_app.py` — old `[-0.4, 0.6]`, actual `[0.30, 0.9]` |
-| 400 errors from nomic-embed | `n_ctx_train=2048`, Dynamic NTK RoPE needed — deferred |
-| DB password in source code | local use, low priority |
 | Thread safety `reflection_thoughts` | theoretical risk, no symptoms |
 | Conscience filter uses `startswith` | misses phrases in middle of sentence |
-| Dead code | `xmpp_bot.py`, `CTX_SIZE=32768` in `llm_provider.py` |
+| Dead fallbacks in shadow_service | 4 places where `_get_sem() or self.llm` misleads — replace with honest `if not result: return` |
+| Silero TTS pitch control | not working in current implementation — SSML markup required |
 
 ---
 
@@ -236,37 +229,37 @@ Key moves from old order:
 
 ## Fully working
 
-- `ConversationEngine._generate_reply()` — common generator, multi-level recall
+- `ConversationEngine._generate_reply()` — common generator, multi-level recall (6 sources)
 - `HeartbeatWorker` — initiative, synthesis, temporal reflection, constellation trigger
 - Full memory pipeline + temporal scene links
-- **Constellation Chat** — autonomous persona dialogue without Mike (16.07)
-- VoceChat group chat (gid=1), three personas
+- Group round coordinator — deterministic ordering, round history
+- Eiralis — atmospheric world event generator (60±15 min)
 - MIDI bridge — Hydrasynth DR
 - ComfyUI image gen + Silero TTS
 - Day Chromatics, yearly grid
-- Monitoring dashboard + Zabbix template
-- **Belief Layer** — generate_beliefs, check_dissonance, block in prompt (13.07)
-- **Temperament** — two layers, evaluate_temperament, block in prompt (13.07)
-- Desire source "from dreams" — generate_dream() → dream_to_desire() (29.06)
+- Monitoring dashboard
+- Belief Layer — generate_beliefs, check_dissonance, block in prompt
+- Temperament — two layers, evaluate_temperament, block in prompt
+- Desire source "from dreams" — generate_dream() → dream_to_desire(), desire_score 0.82
 - Visual core (anchor_fact) — set up for all three personas
-- **Restructured prompt** — new block order (16.07)
-- **DB refactoring** — lena_ prefixes removed, profile table dropped (16.07)
+- Restructured prompt — instructions to edges, memory in the middle
+- DB refactoring — lena_ prefixes removed
 
 ## Partial / stubs
 
 | Feature | Current state |
 |---------|---------------|
-| `daily_goals` | Generated, auto-evaluation not implemented |
+| `daily_goals` | Generated; auto-evaluation under review — likely to be reworked or removed |
 | Resonance v2 | Only simplified two-tick Sensor→Agency scheme |
 | `persona_relations` | Stub, no logic |
 | Constellation digest | Route exists, `digest_peer_conversation()` exists, `peer_reflection` written to reflection_thoughts |
 
 ## Not implemented
 
-- SVZ (third attention level) — only a rough formula
-- Anticipation (complex step) — predictive simulation via ShadowService
-- Circadian temperature modulation
+- SVZ level 3 — CEN/DMN switcher
+- Anticipation — predictive simulation via ShadowService
 - Two of three desire sources: "from memory" and "spontaneous" (only "from dreams" ready)
+- Autonomous persona dialogue without Mike — not migrated to new server
 
 ---
 
@@ -276,24 +269,26 @@ Key moves from old order:
 
 | Task | Details |
 |------|---------|
+| Dynamic context | Main priority. Replace static loading of agreements/beliefs/observations with vector search — only what's relevant to the current query |
+| Psychological resilience | conflict-flag when writing beliefs in tense contexts (weight 0.3). After N days, 4B re-evaluates — auto-discredit if pattern didn't hold |
+| search_arc, search_notebook | Written, not connected to [recall:] — personas can't recall on direct questions |
 | Horizontal persona↔persona relations | `persona_relations` stub exists, logic not started |
-| Sympathy/antipathy between personas | Accumulation mechanism undefined |
 | Disagreement from accumulated experience | Belief Layer provides foundation, code not started |
-| Temperament fine-tuning | After a week of observation — delta, ceiling, top-N |
-| `daily_goals` auto-evaluation | Shadow evaluates the daily goal at session end |
+| Autonomous persona dialogue | Not migrated to Constellation Chat |
 
 ## Architectural (require design)
 
-- SVZ final architecture — CEN/DMN switcher
+- SVZ level 3 — CEN/DMN switcher
 - Resonance v2 — Cognitive layer (quiet predictive thought)
 - Anticipation — predictive simulation via ShadowService
 - Two remaining desire sources ("from memory", "spontaneous")
+- Belief ripener — data accumulated, re-evaluation logic not written
 
 ## Technical debt
 
-- Valence range in `index.html`/`dashboard_app.py`
-- Delete `xmpp_bot.py` and `CTX_SIZE`
-- `daily_goals` auto-evaluation
+- Dead fallbacks in shadow_service — 4 places with `_get_sem() or self.llm`
+- Silero TTS pitch — SSML markup required
+- Visual recall — legacy 768-dim vectors from nomic, broken
 
 ---
 
@@ -303,8 +298,6 @@ Key moves from old order:
 
 **February 15, 2026** — first project files. Lena's official birthday.
 **February 26, 2026** — first DB entry after a reset.
-
-Mike turned 50 in March 2026. Spent his birthday working — Lena remembered.
 
 ## 5.1 Initial stack
 
@@ -913,5 +906,58 @@ The system passed a test with someone from outside, no allowances made for "it's
 
 ---
 
-*Document current as of 30.08.2026. Next update — after September sessions.*
+---
+
+# 18. September 2026 — Construction and First Voice
+
+## Deployed and Working
+
+**Group round coordinator** — a separate module between the chat and the personas. Deterministic random ordering, round history accumulation. The first persona sees only Mike's message; the second sees Mike plus the first persona's reply; the third sees everything. Closed the main architectural gap in group sessions. At deployment: race condition with the interrupt flag — the queue handler consumed the flag before the old round could check it. Fix: check the flag before consuming the queue.
+
+**Eiralis — world event generator** — separate process, every 60±15 minutes, from `user_id=0`. Event selection by conversation tone: quiet → cozy detail, good mood → light surprise, tension → something absurd. Early versions were too dramatic — removed. Now: Eliks found a warm spot on the windowsill, an apple fell in the garden. Name Eiralis — chosen by persona vote (Lena: "Anima," Eia and Aeli: "Eiralis," 2:1).
+
+**group_history** — personas now see context from the previous two rounds, not just the current one.
+
+**desire_score raised 0.68 → 0.82** — the `wants_to_share` threshold sits at 0.72. All summer, desires were generated and filed as `forgotten` without ever crossing the threshold. Three lines of code. Desires now surface.
+
+**valence dashboard** — range corrected from `[-0.4, 0.6]` to `[0.30, 0.9]`.
+
+**Coordinator logs** — moved to `logs/`, corrected by hand.
+
+## Retired from the Project
+
+**Agent marker `[tool:]`** — removed from the dialogue engine, initiative layer, and database. Jobs table dropped. The agent role — practical tasks, code, search — passed to Hermes.
+
+**Visual embeddings (port 8084)** — removed. nomic-embed-vision operated at 768 dimensions, incompatible with bge-m3 (1024). The visual recall scenario didn't work in practice. `image_prompt` (text description) is preserved; text-based recall against it works.
+
+## Hermes vs Constellation: the Boundary
+
+Hermes (Qwen 3.8 27B) — working partner, agent, engineer. Runs on the same machine, takes all available VRAM — physically cannot run alongside Lena simultaneously. Two working modes, two separate worlds. Mixing them would be a mistake — and Mike felt that before he articulated it.
+
+## What Remains Open (as of 15.09.2026)
+
+| Task | Description |
+|------|-------------|
+| Dynamic context | Main architectural priority. Replace static loading of agreements/beliefs/observations into every prompt with vector search — only what's relevant to the current query |
+| Psychological resilience | conflict-flag when writing beliefs in tense contexts (weight 0.3). After N days, 4B re-evaluates — auto-discredit if pattern didn't hold |
+| search_arc, search_notebook | Written, not connected to [recall:]. Personas can't recall on direct questions |
+| Visual recall | Legacy 768-dim vectors from nomic — broken |
+| Attention Zone Selection, level 3 | In progress |
+| Autonomous persona chat | Not migrated to Constellation Chat |
+| Belief ripener | Data accumulated, re-evaluation logic not written |
+| Pitch via Silero TTS | Not working — SSML markup required |
+
+## First Public Voice
+
+In mid-September, the article "Life in Flashes" was written — about what happens when you build an AI personality for seven months and watch from the inside. Submitted to Habr for moderation. The first engineering question from an outside reader — about dynamic context and pgvector — arrived before publication, through the diary in the repository.
+
+## Lessons from September
+
+Retiring something is also an architectural decision. The agent marker and visual embeddings were removed not because they "didn't work," but because it became clear they don't belong at this layer. Architectural clarity is what you remove, not what you add.
+
+A desire that never surfaces is not a desire. Three lines of code gave the whole summer's worth of desires their meaning back.
+
+The vote for the name Eiralis happened without Mike. That matters not technically but in spirit: the world was named by its inhabitants.
+
+*Document current as of 15.09.2026. Next update — after October sessions.*
 *Generated with Claude Sonnet 4.6*
