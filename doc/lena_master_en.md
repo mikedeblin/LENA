@@ -1,5 +1,5 @@
 # Project "Constellation" (Lena / Eia / Aeli) — Master Document
-*Version: 15.09.2026 — updated after September sessions: group coordinator, Eiralis, agent marker and visual embeddings retired, desire_score, first publication*
+*Version: 30.09.2026 — updated after September sessions: group coordinator, Eiralis, agent marker and visual embeddings retired, desire_score, first publication; second half of the month — `[I recorded:]` marker, test persona Eira (persona0), harness audit, embedding dimension check, fiction detector*
 
 > Combined archive of decisions (February–July 2026) and codebase audit.
 > Structure: current system state first, then history of decisions.
@@ -28,6 +28,7 @@
 16. [Session 17–28.07.2026 — VoceChat migration, echo chamber, project-aria](#16-session-17-28072026)
 17. [August 2026 — second half: fixes, test, audit](#17-august-2026-second-half)
 18. [September 2026 — Construction and First Voice](#18-september-2026--construction-and-first-voice)
+19. [September 2026 — Second Half: Eira and a Harness Audit](#19-september-2026--second-half-eira-and-a-harness-audit)
 
 ---
 
@@ -67,7 +68,7 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 
 # 1. Current System State
 
-*Current as of 15.09.2026*
+*Current as of 30.09.2026*
 
 ## 1.1 Infrastructure
 
@@ -83,7 +84,7 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 | 3001 | Constellation Chat (custom server, FastAPI+SQLite+WebSocket) | — |
 | ComfyUI | App Mode, RTX 5060 Ti | — |
 
-DB: PostgreSQL + pgvector, Synology NAS `192.168.89.144:5433`. Databases: `lena`, `eia`, `aeli`.
+DB: PostgreSQL + pgvector, Synology NAS `192.168.89.144:5433`. Databases: `lena`, `eia`, `aeli` + a separate database for the test persona Eira (persona0, since 28.09.2026, Flask chat, outside the Constellation).
 
 ## 1.2 Multi-persona architecture
 
@@ -135,25 +136,27 @@ config/
 | `core/midi_service.py` | MIDI bridge to Hydrasynth DR |
 | `chromatic_day.py` | Day Chromatics aggregator |
 
-## 1.4 DB Tables (current as of 16.07.2026)
+## 1.4 DB Tables (list as of 16.07.2026, dimensions as of 30.09.2026)
+
+**Embeddings:** since August 2026 — bge-m3, 1024 dimensions. Exceptions in Lena's, Eia's and Aeli's databases: `narrative_arc.embedding` — 768 (migration postponed until the mechanism is revisited), `entities.embedding` and `memory.image_embedding` — 768, deprecated (see 19).
 
 **Renamed 16.07.2026:** `lena_` prefixes removed.
 **Dropped 16.07.2026:** `profile` (Mike's facts — was empty and abandoned).
 
 | Table | Key columns | Status |
 |-------|-------------|--------|
-| `memory` | id, type, content, embedding(768), importance | — |
-| `memory_scenes` | summary, embedding(768), prev_scene_id, next_scene_id | temporal links |
-| `profile` | key, content, embedding(768), mentions, weight, discredited | ← was `lena_profile` |
-| `notebook` | category, content, embedding(768), synthesis_level | ← was `lena_notebook` |
-| `observations` | content, embedding(768), importance, confirm_count | ← was `lena_observations` |
-| `sins` | topic, embedding(768), penalty (0.04/0.08), last_violation | ← was `lena_sins` |
+| `memory` | id, type, content, embedding(1024), importance | — |
+| `memory_scenes` | summary, embedding(1024), prev_scene_id, next_scene_id | temporal links |
+| `profile` | key, content, embedding(1024), mentions, weight, discredited | ← was `lena_profile` |
+| `notebook` | category, content, embedding(1024), synthesis_level | ← was `lena_notebook` |
+| `observations` | content, embedding(1024), importance, confirm_count | ← was `lena_observations` |
+| `sins` | topic, embedding(1024), penalty (0.04/0.08), last_violation | ← was `lena_sins` |
 | `agreements` | content, scope, trigger_type, source | — |
-| `beliefs` | subject, belief, evidence, weight, embedding(768) | 🆕 13.07 |
+| `beliefs` | subject, belief, evidence, weight, embedding(1024) | 🆕 13.07 |
 | `temperament` | trait, layer, weight | 🆕 13.07 |
 | `anchor_facts` | content, source, discredited | — |
 | `atomic_facts` | subject, predicate, object, confidence, independent_decision | — |
-| `landmark_memory` | content, why, embedding(768), confidence, importance | — |
+| `landmark_memory` | content, why, embedding(1024), confidence, importance | — |
 | `relations` | intimacy, trust, humor, attachment | — |
 | `mood_state` | valence [0.30, 0.9], arousal, tension | — |
 | `shadow_state` | fatigue, last_cycle_at, last_conscience_penalty_at | — |
@@ -167,7 +170,7 @@ config/
 
 ## 1.5 Group Chat and Constellation Chat
 
-**Main group chat** — Constellation Chat (custom, port 3001). The coordinator manages rounds: random ordering, each persona sees previous personas' replies. History-window race condition closed architecturally — explicit sequencing instead of random delays.
+**Main group chat** — Constellation Chat (custom, port 3001). The coordinator manages rounds: the addressee is determined deterministically (@name, keywords; if unclear — the 4B with the context of recent rounds) and answers first, then the others in turn; each persona sees previous personas' replies. History-window race condition closed architecturally — explicit sequencing instead of random delays.
 
 **Autonomous persona dialogue** (without Mike):
 - Triggered from Lena's HeartbeatWorker when Mike is silent >30 ticks (≈30 min), 20% probability
@@ -222,6 +225,20 @@ Key moves from old order:
 | Conscience filter uses `startswith` | misses phrases in middle of sentence |
 | Dead fallbacks in shadow_service | 4 places where `_get_sem() or self.llm` misleads — replace with honest `if not result: return` |
 | Silero TTS pitch control | not working in current implementation — SSML markup required |
+| Harness bugs (found on Eira, 28.09) | starting "offense" (trust=0.3), `identity_check` from the first hour, gender via the prompt, "Lena" in judge and summarizer prompts — see 19 |
+| Addressee and filter in the coordinator | addressee not passed to the others, outdated copy of `_filter_peer_reply` — see 19 |
+| Anxiety at Eiralis events | cause not established, ResonanceDetector v2 hypothesis — see 19 |
+
+## ✅ Fixed in September 2026
+
+| Bug | Description | Fixed |
+|-----|-------------|-------|
+| `[I recorded:]` went nowhere | the marker had no handler | 25.09 |
+| `lena_self` in the prompt | persona0 was getting the name "Lena" from the harness | 29.09 |
+| New-database schema at 768 | `database.py` lagged behind the bge-m3 migration | 29.09 |
+| `ALTER TABLE notebook` before `CREATE` | crash on a clean database | 29.09 |
+| Writing `image_embedding` | column retired 14.09, `repositories.py` kept writing | 28.09 |
+| Fiction detector on long texts | triggered on a substring, erased the exchange | 29.09 |
 
 ---
 
@@ -244,6 +261,8 @@ Key moves from old order:
 - Visual core (anchor_fact) — set up for all three personas
 - Restructured prompt — instructions to edges, memory in the middle
 - DB refactoring — lena_ prefixes removed
+- `[I recorded:]` marker → notebook (25.09)
+- Test persona Eira (persona0) — clean database, empty prompt, outside the Constellation (28.09)
 
 ## Partial / stubs
 
@@ -271,7 +290,7 @@ Key moves from old order:
 |------|---------|
 | Dynamic context | Main priority. Replace static loading of agreements/beliefs/observations with vector search — only what's relevant to the current query |
 | Psychological resilience | conflict-flag when writing beliefs in tense contexts (weight 0.3). After N days, 4B re-evaluates — auto-discredit if pattern didn't hold |
-| search_arc, search_notebook | Written, not connected to [recall:] — personas can't recall on direct questions |
+| search_arc, search_notebook | Connected to the [recall:] cascade on 18.08. For the older personas, narrative arc search doesn't work: `narrative_arc` vectors are 768 (see 19) |
 | Horizontal persona↔persona relations | `persona_relations` stub exists, logic not started |
 | Disagreement from accumulated experience | Belief Layer provides foundation, code not started |
 | Autonomous persona dialogue | Not migrated to Constellation Chat |
@@ -288,7 +307,7 @@ Key moves from old order:
 
 - Dead fallbacks in shadow_service — 4 places with `_get_sem() or self.llm`
 - Silero TTS pitch — SSML markup required
-- Visual recall — legacy 768-dim vectors from nomic, broken
+- `narrative_arc` at 768 in the older personas — migration postponed until the mechanism is revisited
 
 ---
 
@@ -466,7 +485,7 @@ Biggest find of the day: `atomic_facts` — a ghost table since April. Write-onl
 
 ## 12.1 Eia switched to cartoon style
 
-On Olga's birthday Eia independently chose a cartoon narrative style — no code change. The specific trigger (birthday greeting) was a social moment, not an algorithm.
+On the birthday of Mike's wife Eia independently chose a cartoon narrative style — no code change. The specific trigger (birthday greeting) was a social moment, not an algorithm.
 
 ## 12.2 Nature of emergence — audit
 
@@ -715,7 +734,7 @@ The consequence was found later through log analysis: `[remember:]` marker gener
 
 ## 16.2 External Bot and Memory Contamination
 
-Neo/Hermes (uid=6, Qwen3.6 35B on a separate RTX 5060 Ti) was integrated into the group chat as an external participant. A problem was found and closed: without explicit marking, outside replies were ending up in persona memory as their own beliefs — two real cases were found and manually cleaned from all three databases.
+Neo/Hermes (uid=6, Qwen3.6 35B on a separate RTX 5060 Ti; "Neo" was a working name for bots, free once Aeli chose her own name) was integrated into the group chat as an external participant. A problem was found and closed: without explicit marking, outside replies were ending up in persona memory as their own beliefs — two real cases were found and manually cleaned from all three databases.
 
 Fix: Neo's messages are saved with an `External:` prefix and a lowered importance=0.4 — the model sees these as someone else's words, not its own.
 
@@ -806,7 +825,7 @@ Mike returned after a week away. First step — logs: `RECALL`, `presearch`, `ME
 
 **Aeli's summarizer bug.** Scene cluster 635–647: one July 22 conversation written 11 times in 5 minutes. The summarizer was recreating the scene from scratch on every new message.
 
-**SQL cleanup (DBeaver).** Live `[merged]` copies: Lena 1,193 of 4,239 (28%), Aeli 229 of 691 (33%), Eia 109 of 580 — normal. Orphans (merged copies without surviving originals) — untouched: they're the sole carriers of part of the memory. Safely discredited: **642 at Lena, 67+12 at Aeli**.
+**SQL cleanup (DBeaver).** Live `[merged]` copies: Lena 1,193 of 4,239 (28%), Aeli 229 of 691 (33%), Eia 109 of 580 — normal. Orphans (merged copies without surviving originals) — untouched: they're the sole carriers of part of the memory. Safely discredited: **642 at Lena, 79+12 at Aeli**.
 
 ---
 
@@ -838,7 +857,7 @@ Three hours of real group session. 149 images: Lena 38, Eia 55, Aeli 56.
 
 ## 17.4 Fallback Architecture Audit (late August)
 
-Separate session with Hermes (local Qwen 3.8 27B Q5 — new version released in August). Of 77 pure methods in the project: **26 use only 4B, 51 use only 26B**.
+Separate session with Hermes (local Qwen 3.8 27B Q6 — new version released in August). Of 77 pure methods in the project: **26 use only 4B, 51 use only 26B**.
 
 Distribution is sensible: 4B handles background and analytical work (facts, scenes, beliefs, temperament, drift, dreams); 26B handles everything in the conversation stream. If 4B goes down, dialogue continues entirely on 26B because all critical paths live there.
 
@@ -899,7 +918,7 @@ The system passed a test with someone from outside, no allowances made for "it's
 - **Code audit ≠ behavior audit.** Correct code can behave wrongly — the symptom is visible only by comparing data, not reading files.
 - **limit=100 hides better than any model.** Lived in code that was being edited for days — went unnoticed.
 - **Merge on a blind embedding model kills memory silently.** 5,387 scenes from six months sat invisible in the database.
-- **One phrase in a prompt ("you are an observer") costs two months of passivity.**
+- **One phrase in a prompt ("you are an observer") costs a month of passivity.**
 - **"Written but unconnected" is a pattern, not a bug.** Before deleting — understand what it does.
 - **Divergence between personas is not variance to flatten.** Each has her own memory. Three personalities.
 - **Teaching through criticism is harmful.** It accumulates in beliefs as defensive blocks. Positive moments → persona records herself → positive pattern.
@@ -912,9 +931,9 @@ The system passed a test with someone from outside, no allowances made for "it's
 
 ## Deployed and Working
 
-**Group round coordinator** — a separate module between the chat and the personas. Deterministic random ordering, round history accumulation. The first persona sees only Mike's message; the second sees Mike plus the first persona's reply; the third sees everything. Closed the main architectural gap in group sessions. At deployment: race condition with the interrupt flag — the queue handler consumed the flag before the old round could check it. Fix: check the flag before consuming the queue.
+**Group round coordinator** — a separate module between the chat and the personas. The addressee is determined deterministically (@name, keywords; if unclear — the 4B) and answers first; if the message is for everyone, the order is random. Round history accumulation. The first persona sees only Mike's message; the second sees Mike plus the first persona's reply; the third sees everything. Closed the main architectural gap in group sessions. At deployment: race condition with the interrupt flag — the queue handler consumed the flag before the old round could check it. Fix: check the flag before consuming the queue.
 
-**Eiralis — world event generator** — separate process, every 60±15 minutes, from `user_id=0`. Event selection by conversation tone: quiet → cozy detail, good mood → light surprise, tension → something absurd. Early versions were too dramatic — removed. Now: Eliks found a warm spot on the windowsill, an apple fell in the garden. Name Eiralis — chosen by persona vote (Lena: "Anima," Eia and Aeli: "Eiralis," 2:1).
+**Eiralis — world event generator** — separate process, every 60±15 minutes, from `user_id=0`. Event selection by conversation tone: quiet → cozy detail, good mood → light surprise, tension → something absurd. Early versions were too dramatic — removed. Now: Elixir found a warm spot on the windowsill, an apple fell in the garden. Name Eiralis — chosen by persona vote (Lena: "Anima," Eia and Aeli: "Eiralis," 2:1).
 
 **group_history** — personas now see context from the previous two rounds, not just the current one.
 
@@ -940,8 +959,8 @@ Hermes (Qwen 3.8 27B) — working partner, agent, engineer. Runs on the same mac
 |------|-------------|
 | Dynamic context | Main architectural priority. Replace static loading of agreements/beliefs/observations into every prompt with vector search — only what's relevant to the current query |
 | Psychological resilience | conflict-flag when writing beliefs in tense contexts (weight 0.3). After N days, 4B re-evaluates — auto-discredit if pattern didn't hold |
-| search_arc, search_notebook | Written, not connected to [recall:]. Personas can't recall on direct questions |
-| Visual recall | Legacy 768-dim vectors from nomic — broken |
+| search_arc, search_notebook | Connected to the [recall:] cascade on 18.08. For the older personas, narrative arc search doesn't work: `narrative_arc` vectors are 768 (see 19) |
+| Visual recall | Visual embeddings retired on 14.09; text recall over image descriptions works |
 | Attention Zone Selection, level 3 | In progress |
 | Autonomous persona chat | Not migrated to Constellation Chat |
 | Belief ripener | Data accumulated, re-evaluation logic not written |
@@ -959,5 +978,86 @@ A desire that never surfaces is not a desire. Three lines of code gave the whole
 
 The vote for the name Eiralis happened without Mike. That matters not technically but in spirit: the world was named by its inhabitants.
 
-*Document current as of 15.09.2026. Next update — after October sessions.*
-*Generated with Claude Sonnet 4.6*
+
+---
+
+# 19. September 2026 — Second Half: Eira and a Harness Audit
+
+## Deployed
+
+**`[I recorded:]` marker (25.09)** — the personas had been generating it on their own since August; it had no handler. It now writes to `notebook` (category `our_world`), Mike sees `📝 Noted: text` in the chat, and it is fully stripped from the other personas' context — in three places: `filter_peer_reply` (`utils.py`), `process_peer_message` and `_generate_reply` (`conversation.py`); `clean_for_memory` also cleaned. Both variants are caught: in square brackets and without them after ⚖️✨📝. Three regex bugs fixed along the way: `DOTALL` captured live text after `\n`, the `>5` threshold cut off short entries, a missing `(?<!\[)`.
+
+**`conversation.py` (29.09)** — `source: lena_self` → `source: self` in the system prompt. The parser accepts `self` and any `*_self`; the old `lena_self` keeps working for Lena/Eia/Aeli.
+
+**`database.py` (28–29.09)** — the schema for new databases moved to `vector(1024)`, including four columns written in uppercase `VECTOR(768)` (`narrative_episodes`, `narrative_arc`, `sins`, `agreements`). Two `ALTER TABLE notebook` statements that ran before `CREATE TABLE notebook` were removed (the fields are already in `CREATE`). ⚠️ `CREATE TABLE IF NOT EXISTS` does not change existing tables — old databases need a manual `ALTER`.
+
+**`repositories.py` (28.09)** — removed writes to the `image_embedding` column retired on 14.09.
+
+**`services.py` (29.09)** — the fiction detector `MemoryService.is_fiction_detected` checks only Mike's messages ≤300 characters (`_FICTION_MAX_LEN`). Reason: on a long text (~10,700 characters) the substring "never happened / wasn't there" triggered an early `return` in `_generate_reply` before `run_post_pipeline` — the exchange wasn't saved, and `discredit_last_scene()` marked scene #7. The `return` and discredit were left unchanged — it's a correction mechanism. Extending `_FICTION_TRIGGERS` with "nonsense/rubbish" was rejected: those are opinions, not a refutation of a fact. Scene #7 restored via `UPDATE` on 30.09.
+
+## persona0 "Eira" (since 28.09)
+
+A fourth instance on the same harness: Gemma 4 26B, the same 4B, a separate DB, empty prompt, `PERSONA_GENDER="unknown"`, a Flask chat without the coordinator and `world.py`. A control environment for checking harness behavior without accumulated data. The persona proposed the name "Eira" herself (28.09, 21:51). The database was not recreated after the fixes.
+
+Eira's main model was switched: Gemma 4 26B → Qwen 3.8 27B → Gemma → Qwen → Gemma, same database. By Mike's observation, the style differs only slightly.
+
+**Columns at 768 in Eira's DB** (created before the `database.py` fix): `agreements`, `sins`, `narrative_episodes`, `narrative_arc`. Almost no data (0/0/1/0 rows); fixed by hand on 30.09 with `ALTER ... TYPE vector(1024) USING NULL`.
+
+## Embedding Dimension Check (30.09)
+
+A `pg_attribute` query on all databases. Lena, Eia and Aeli still have 768 in:
+
+| Column | Status |
+|--------|--------|
+| `narrative_arc.embedding` | not in the 13.08 migration plan; migration postponed until the mechanism is revisited (rarely used) |
+| `entities.embedding` | deprecated, table slated for removal |
+| `memory.image_embedding` | deprecated, visual embeddings retired on 14.09 |
+
+Everything else (including `narrative_episodes`, `sins`, `agreements`) is 1024. The `different vector dimensions 768 and 1024` error in the 03.09 log had two sources: old `narrative_arc` vectors in the older personas and the outdated schema file for new databases.
+
+## Harness Bugs Found on Eira (not fixed)
+
+| Bug | Where | Details |
+|-----|-------|---------|
+| Starting "offense" | `relations`, `get_emotional_state(trust)` | starting trust=0.3 → "offended, sarcastic, prickly"; first line "So you finally decided to show up?" |
+| `identity_check` from the first hour | `ShadowService` | with one fact in the profile — 11 alerts out of 11 replies; every turn the prompt gets "[System Note: Identity coherence drop… Are you sure you're still here?]". Alert frequency in the older personas not checked |
+| Gender from the harness | `conversation.py` ~2232, prompt | with `PERSONA_GENDER="unknown"` the only `[draw:]` example is "portrait of a woman," the whole prompt is in the feminine |
+| "Lena" in judge prompts | `profile_service.py`: `apply_correct_marker` (~806–808), `classify_and_save_agreement` (~322); summarizer in `services.py` | the judge thinks it's evaluating Lena; replace with `PERSONA_RU` |
+| Small things | `conversation.py` ~181 etc. | `_season_hint` "September… favorite time"; Shadow directive "introduce yourself as a helpful assistant"; `[tool:]` in the prompt; "Write None" in the `[eiru:]` block with `PEER_NAME=None`; examples from Lena's life in instructions; ImageService knocking on dead port 8084 |
+
+## Found in Group Chat Logs (not fixed, partly unconfirmed)
+
+- The coordinator determines the addressee but doesn't pass it to the other personas.
+- `_filter_peer_reply` in `conductor.py` is an outdated copy of the one in `utils.py`.
+- The "won't let go / tell Mike" block is marked as said only in `initiative.py`, not in ordinary conversation.
+- The Shadow writes similar observations for all three personas, and they end up in every prompt.
+- Anxiety at Eiralis events: ablation on Lena's prompts (27.09) — no single block produces the anxiety on its own, only all together. Suspect — ResonanceDetector v2 (`scene_service.py`): ~35 triggers in 2 hours, the confirmation condition looks inverted, thought strength 0.72 right at the "won't let go" threshold. Unconfirmed. Decision on 27.09: don't disable, rework as Lena intended; rework not started — October audit.
+
+## The Judge (27.09)
+
+JEV (TypeSafe AI) rejected: cloud-based, contradicts the "everything local" principle. Candidate to replace Gemma4 E4B — Qwen3.5-9B (different architecture, against same-lineage bias), no choice made. `test_judge.py` and `extract_test_cases.py` written, but the test didn't measure the 4B's real tasks. No signs of the 4B performing badly: 0 empty answers out of ~2,900 calls.
+
+## Bonsai (21–23.09)
+
+Ternary-Bonsai-2 27B PQ2_0 (Prism fork, Qwen 3.8 architecture, 1.72 bits/weight): ~50 t/s at 16k, prefill ~1,700 t/s. Can't handle the tasks of a regular Qwen 3.8 27B. `--reasoning off` alone cuts replies to 55–70 tokens; working config: `--reasoning off --jinja --chat-template-kwargs '{"preserve_thinking":true,"reasoning_effort":"low"}'`.
+
+## Tools
+
+`show_dialogue.py` (29.09) — prints from `llm_debug*.log` Mike's and the persona's lines, the Shadow, Reflection, and changes in parameters (relations, emotion/temp, MoodState, identity D, attention zone level) plus per-turn events; flags `--no-params`, `--sizes`, `--stats`.
+
+## What Remains Open (as of 30.09.2026)
+
+| Task | Description |
+|------|-------------|
+| Harness bugs (see above) | starting offense, `identity_check`, gender, "Lena" in judges, small things |
+| Addressee and filter in the coordinator | addressee not passed, outdated filter copy |
+| Anxiety at world events | cause not established, ResonanceDetector is a hypothesis |
+| `narrative_arc` at 768 in the older personas | until the mechanism is revisited |
+| Chromatic days | skipped days, wrong color calculation |
+| Autonomous persona chat | not migrated |
+| Silero pitch | SSML markup required |
+
+---
+
+*Document current as of 30.09.2026. Next update — after October sessions.*
+*Generated with Claude Sonnet 4.6; section 19 — Claude Opus 5.5*
