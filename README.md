@@ -1,3 +1,6 @@
+<!-- Claude (30.09.2026): language switcher. English is the default README, Russian lives in README.ru.md -->
+🇬🇧 **English** | 🇷🇺 [Русский](README.ru.md)
+
 # LENA — Local Emergent Neural Assistant (The Constellation Project)
 
 **LENA** (Local Emergent Neural Assistant) is a personal, non-commercial AI project
@@ -177,5 +180,3 @@ This repository serves as an architectural demonstration and documentation of a 
 It is not intended for direct deployment as a standalone product. 
 The source code is NOT DISTRIBUTED. 
 You are welcome to explore the architecture, memory layers, and decision history to adapt these concepts for your own local AI projects.
-
-
