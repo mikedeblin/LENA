@@ -1,5 +1,5 @@
 # Project "Constellation" (Lena / Eia / Aeli) — Master Document
-*Version: 30.09.2026 — updated after September sessions: group coordinator, Eiralis, agent marker and visual embeddings retired, desire_score, first publication; second half of the month — `[I recorded:]` marker, test persona Eira (persona0), harness audit, embedding dimension check, fiction detector*
+*Version: 30.10.2026 — updated after October: personality core on a bare model, switch to Gemma 4 12B, mask judge, audit, background worker on the NAS, relations returning to base, dreams on waking. Earlier (30.09) — after September sessions: group coordinator, Eiralis, agent marker and visual embeddings retired, desire_score, first publication; second half of the month — `[I recorded:]` marker, test persona Eira (persona0), harness audit, embedding dimension check, fiction detector*
 
 > Combined archive of decisions (February–July 2026) and codebase audit.
 > Structure: current system state first, then history of decisions.
@@ -29,6 +29,7 @@
 17. [August 2026 — second half: fixes, test, audit](#17-august-2026-second-half)
 18. [September 2026 — Construction and First Voice](#18-september-2026--construction-and-first-voice)
 19. [September 2026 — Second Half: Eira and a Harness Audit](#19-september-2026--second-half-eira-and-a-harness-audit)
+20. [October 2026 — The Wall: Core, Audit, Background on the NAS, Dreams](#20-october-2026--the-wall-core-audit-background-on-the-nas-dreams)
 
 ---
 
@@ -53,9 +54,10 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 |-----------|------|
 | Ryzen 3900X | CPU |
 | 64GB RAM | — |
-| RTX 4080 16GB | Lena — Gemma4 26B |
+| RTX 4080 16GB | main model — Gemma 4 12B Q8_0 + MTP (since 06.10.2026; before that Gemma4 26B) |
 | RTX 5060 Ti 16GB | ComfyUI + Gemma4 4B + bge-m3 |
 | NVMe SSD | — |
+| Synology NAS | PostgreSQL + pgvector, containers `lena/worker` and `lena/llama-cpu` (since 10.2026) |
 
 ## 0.4 Collaboration rules (Mike ↔ Claude)
 
@@ -68,13 +70,13 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 
 # 1. Current System State
 
-*Current as of 30.09.2026*
+*Current as of 30.10.2026*
 
 ## 1.1 Infrastructure
 
 | Port | Service | GPU |
 |------|---------|-----|
-| 8080 | `gemma-4-26B-A4B-it-UD-IQ4_XS.gguf` (MoE) — chat, shared by all personas | RTX 4080 (CUDA0) |
+| 8080 | Gemma 4 12B Q8_0 + MTP (own build, since 05–06.10.2026; before that `gemma-4-26B-A4B-it-UD-IQ4_XS`) — chat, shared by all personas | RTX 4080 (CUDA0) |
 | 8081 | `gemma-4-E4B-it-Q4_K_M.gguf` — semantic/judge layer | RTX 5060 Ti (CUDA1) |
 | 8082 | bge-m3 1024-dim (replaced nomic-embed in August 2026) | RTX 5060 Ti |
 | 5000 | Lena (Flask) | — |
@@ -83,8 +85,10 @@ Mike's own formulation: *"an experimental AI project aimed at creating not a too
 | 5010 | `dashboard_app.py` — unified monitoring | — |
 | 3001 | Constellation Chat (custom server, FastAPI+SQLite+WebSocket) | — |
 | ComfyUI | App Mode, RTX 5060 Ti | — |
+| NAS 8092 | `lena/llama-cpu` — bge-m3 Q8 on CPU (no AVX), not used yet | — |
+| NAS | `lena/worker` 0.3.0 — background decays in real time (see 20.6) | — |
 
-DB: PostgreSQL + pgvector, Synology NAS `192.168.89.144:5433`. Databases: `lena`, `eia`, `aeli` + a separate database for the test persona Eira (persona0, since 28.09.2026, Flask chat, outside the Constellation).
+DB: PostgreSQL + pgvector, Synology NAS `192.168.89.144:5433`. Databases: `lena`, `eia`, `aeli` + a separate database for the test persona Eira (persona0, since 28.09.2026, Flask chat, outside the Constellation). A copy of LENA with Eira also runs on a second machine (16 GB, since 10.2026).
 
 ## 1.2 Multi-persona architecture
 
@@ -111,14 +115,16 @@ config/
 | `engine/constellation_chat.py` | Autonomous dialogue between personas without Mike |
 | `engine/constellation_client.py` | Client for inter-persona channel |
 | `dashboard_app.py` | Three-persona monitoring dashboard (port 5010), Chromatics of the Year |
+| `chat/conductor.py` | Group round coordinator (addressee, order, round history) |
+| `worker.py` (NAS, container `lena/worker`) | Decays of sins/profile/atomic_facts/beliefs/importance, relations returning to 0.78 (since 13.10) |
 
 ### Memory
 
 | File | Role |
 |------|------|
-| `memory/services.py` | `MemoryService` orchestrator |
+| `memory/services.py` | `MemoryService` orchestrator, `on_wake()` — dreaming on waking (since 13.10) |
 | `memory/repositories.py` | DAL for all tables (incl. `BeliefRepository`, `TemperamentRepository`) |
-| `memory/scene_service.py` | Episodic scenes, temporal links, `generate_dream()` |
+| `memory/scene_service.py` | Episodic scenes, temporal links, `generate_dream()`, `should_dream_on_wake()` (since 13.10) |
 | `memory/profile_service.py` | Persona facts, observations, notebook, dedup (Mike section removed 16.07) |
 | `memory/context_service.py` | `active_context`, landmarks, `reflection_thoughts` |
 | `memory/shadow_service.py` | Fatigue, conscience (`sins`), drift detection, synthesis, beliefs, temperament, `digest_peer_conversation()` |
@@ -131,12 +137,13 @@ config/
 |------|------|
 | `core/llm_provider.py` | Ports 8080/8081/8082 |
 | `core/prompt_builder.py` | Prompt assembly |
+| `core/voice_judge.py` | Mask judge: `mask_check.jsonl` log, turn skip on "writes for another" and copies ≥30 words (since 06/13.10) |
 | `core/image_service.py` | ComfyUI |
 | `core/tts_service.py` | Silero v5 |
 | `core/midi_service.py` | MIDI bridge to Hydrasynth DR |
 | `chromatic_day.py` | Day Chromatics aggregator |
 
-## 1.4 DB Tables (list as of 16.07.2026, dimensions as of 30.09.2026)
+## 1.4 DB Tables (list as of 16.07.2026, dimensions as of 30.09.2026, amendments as of 30.10.2026)
 
 **Embeddings:** since August 2026 — bge-m3, 1024 dimensions. Exceptions in Lena's, Eia's and Aeli's databases: `narrative_arc.embedding` — 768 (migration postponed until the mechanism is revisited), `entities.embedding` and `memory.image_embedding` — 768, deprecated (see 19).
 
@@ -145,7 +152,7 @@ config/
 
 | Table | Key columns | Status |
 |-------|-------------|--------|
-| `memory` | id, type, content, embedding(1024), importance | — |
+| `memory` | id, type, content, embedding(1024), importance | `fillfactor 85` (14.10), importance decayed by the worker |
 | `memory_scenes` | summary, embedding(1024), prev_scene_id, next_scene_id | temporal links |
 | `profile` | key, content, embedding(1024), mentions, weight, discredited | ← was `lena_profile` |
 | `notebook` | category, content, embedding(1024), synthesis_level | ← was `lena_notebook` |
@@ -157,10 +164,10 @@ config/
 | `anchor_facts` | content, source, discredited | — |
 | `atomic_facts` | subject, predicate, object, confidence, independent_decision | — |
 | `landmark_memory` | content, why, embedding(1024), confidence, importance | — |
-| `relations` | intimacy, trust, humor, attachment | — |
+| `relations` | intimacy, trust, humor, attachment | returned to base 0.78 by the worker (13.10) |
 | `mood_state` | valence [0.30, 0.9], arousal, tension | — |
 | `shadow_state` | fatigue, last_cycle_at, last_conscience_penalty_at | — |
-| `reflection_thoughts` | text, thought_type, importance, score, state, decay | types: desire, peer_reflection (new) |
+| `reflection_thoughts` | text, thought_type, importance, score, state, decay | types: desire, peer_reflection, dream (13.10) |
 | `proposed_self_updates` | text, op, status | — |
 | `persona_relations` | from_persona, to_persona, sympathy, antipathy | 🆕 stub 13.07 |
 | `shadow_pulse` | significance, tag, emotional snapshot | basis for Day Chromatics |
@@ -225,7 +232,10 @@ Key moves from old order:
 | Conscience filter uses `startswith` | misses phrases in middle of sentence |
 | Dead fallbacks in shadow_service | 4 places where `_get_sem() or self.llm` misleads — replace with honest `if not result: return` |
 | Silero TTS pitch control | not working in current implementation — SSML markup required |
-| Harness bugs (found on Eira, 28.09) | starting "offense" (trust=0.3), `identity_check` from the first hour, gender via the prompt, "Lena" in judge and summarizer prompts — see 19 |
+| Harness bugs (found on Eira, 28.09) | starting "offense" (trust=0.3), `identity_check` from the first hour, gender via the prompt, "Lena" in judge and summarizer prompts — see 19 (Shadow directive turned off 09.10) |
+| "Won't let go — tell Mike" | repeats every prompt in ordinary conversation, fades only in initiative — awaiting design intent, see 20 |
+| Log truncation | `[:50]`/`[:60]` — to be removed per the "no log length limits" rule |
+| Copying the neighbor | closed with a crutch (turn skip), cause not removed — see 20.3 |
 | Addressee and filter in the coordinator | addressee not passed to the others, outdated copy of `_filter_peer_reply` — see 19 |
 | Anxiety at Eiralis events | cause not established, ResonanceDetector v2 hypothesis — see 19 |
 
@@ -239,6 +249,19 @@ Key moves from old order:
 | `ALTER TABLE notebook` before `CREATE` | crash on a clean database | 29.09 |
 | Writing `image_embedding` | column retired 14.09, `repositories.py` kept writing | 28.09 |
 | Fiction detector on long texts | triggered on a substring, erased the exchange | 29.09 |
+
+## ✅ Fixed in October 2026
+
+| Bug | Description | Fixed |
+|-----|-------------|-------|
+| Shadow advisor directive | "⚑ Important now" pressed on replies | 09.10 (turned off by flag) |
+| `[observe:]` not saved | block overwritten by `str_replace` on 12.08 | 13.10 |
+| Decays lived in harness ticks | nothing decayed without the app running | 13.10 (worker on the NAS) |
+| Relations frozen at 1.00 | no return to base | 13.10 (worker 0.3.0) |
+| "Verified facts" stuck since June | no age weighting | 13.10 |
+| Synchronized dreams, "Lena's dream" for all | shared dream prompt | 13.10, verified 15.10 |
+| Nightly importance pass timeout | hnsw on `memory` | 14.10 (`fillfactor 85`) |
+| Lena's personal chat showed a login screen | two `index.html` files swapped | 17.10 |
 
 ---
 
@@ -257,12 +280,17 @@ Key moves from old order:
 - Monitoring dashboard
 - Belief Layer — generate_beliefs, check_dissonance, block in prompt
 - Temperament — two layers, evaluate_temperament, block in prompt
-- Desire source "from dreams" — generate_dream() → dream_to_desire(), desire_score 0.82
+- Desire source "from dreams" — generate_dream() → dream_to_desire(), desire_score 0.82 (since 13.10 — on waking, not from heartbeat)
 - Visual core (anchor_fact) — set up for all three personas
 - Restructured prompt — instructions to edges, memory in the middle
 - DB refactoring — lena_ prefixes removed
 - `[I recorded:]` marker → notebook (25.09)
 - Test persona Eira (persona0) — clean database, empty prompt, outside the Constellation (28.09)
+- Gemma 4 12B Q8_0 + MTP as the main model (06.10)
+- Background worker on the NAS 0.3.0 — real-time decays, relations returning to 0.78 (13.10)
+- Dreaming on waking: relations drift, dream → `dream` thought → desire; each persona her own (13.10)
+- Dictionary of intimacy/humor shades and a time-of-day offset (13.10)
+- `<inner>` mechanism (10.10), memory-write notices for Mike (13.10)
 
 ## Partial / stubs
 
@@ -272,6 +300,9 @@ Key moves from old order:
 | Resonance v2 | Only simplified two-tick Sensor→Agency scheme |
 | `persona_relations` | Stub, no logic |
 | Constellation digest | Route exists, `digest_peer_conversation()` exists, `peer_reflection` written to reflection_thoughts |
+| Mask judge | Step 2 — turn skip; step 3 not designed |
+| `lena/llama-cpu` (NAS 8092) | Built, not used |
+| Dream tone | Step 3 — via bge-m3, not started |
 
 ## Not implemented
 
@@ -294,6 +325,10 @@ Key moves from old order:
 | Horizontal persona↔persona relations | `persona_relations` stub exists, logic not started |
 | Disagreement from accumulated experience | Belief Layer provides foundation, code not started |
 | Autonomous persona dialogue | Not migrated to Constellation Chat |
+| Time | A "— N passed —" separator in the history and "while you were away" on waking — an idea (20.13) |
+| Memory links | The personas don't connect fragments of memories (20.11) |
+| "Won't let go" | Awaiting Mike's design intent |
+| Silero v5 | In the near future |
 
 ## Architectural (require design)
 
@@ -308,6 +343,8 @@ Key moves from old order:
 - Dead fallbacks in shadow_service — 4 places with `_get_sem() or self.llm`
 - Silero TTS pitch — SSML markup required
 - `narrative_arc` at 768 in the older personas — migration postponed until the mechanism is revisited
+- `[:50]`/`[:60]` truncation in logs
+- Worker: chunked importance, daily profile/atomic passes — at the next rebuild
 
 ---
 
@@ -1059,5 +1096,147 @@ Ternary-Bonsai-2 27B PQ2_0 (Prism fork, Qwen 3.8 architecture, 1.72 bits/weight)
 
 ---
 
-*Document current as of 30.09.2026. Next update — after October sessions.*
-*Generated with Claude Sonnet 4.6; section 19 — Claude Opus 5.5*
+# 20. October 2026 — The Wall: Core, Audit, Background on the NAS, Dreams
+
+> The month the project hit the wall of "what next" — and, at the same time, first learned to live without Mike: background processes moved to the NAS, dreams happen on waking. Full chronicle — `claude/OCTOBER_2026.md`, deploy md5s — `claude/DEPLOYED.md`, design intents — `claude/DESIGN_INTENTS.md`.
+
+## 20.1 Personality Core on a Bare Model (03–05.10)
+
+Hypothesis: the personas have no "who I am" core — only fragments, so every turn the model infers itself from the situation and easily takes on someone else's voice. Scripts `core_test.py` / `core_chat.py` (prompt rebuilt every turn, as in the harness), runs on Gemma 26B-A4B, Gemma 4 12B Q8/Q4, Qwen 27B, Qwen 9B.
+
+Findings (1–3 runs each, some are hypotheses):
+- "who I am" and "how I speak" are different mechanisms;
+- the model's self-descriptions are not data;
+- a separate address "You are X" pushes hardest;
+- concrete triggers "if X — I do Y" are the most stable layer;
+- a reply to a transcript copies its form;
+- the dense Gemma 4 12B holds name and voice better than the MoE 26B-A4B → active capacity per token is what matters.
+
+Decided: core first, then the community of personas.
+
+## 20.2 Model Switch (05–06.10)
+
+Production moved from `gemma-4-26B-A4B-it-UD-IQ4_XS` to **Gemma 4 12B** — first bartowski Q4_K_M/Q8_0, then Mike's own **Q8_0 + MTP** build (Unsloth's Q8 mangled Russian). The base prompts of all three were rewritten: someone else's name, "you don't copy," "You are at home with your family," `[Name]` signatures, `[Eiralis]` is not a person, "no stage directions, emoji rarely." Aeli's anchor id 1 — "spirit of the house, a child, but not a human."
+
+## 20.3 Copying and the Mask Judge
+
+Replay test: verbatim copying comes from the neighbor's reply **in the current round** (12.3% shared phrases vs. 0.1% without it, p<0.001); the form (emoji, "I'm noting") is held by the persona's own history.
+
+Lightweight JEV analogs (Clef-flash 9B, Julia-1, Laya) were tested and rejected — weak in Russian. A code-based `core/voice_judge.py` was built:
+- step 1 (06.10) — log only, `mask_check.jsonl`: "dad," writes for another persona, someone else's name, copy ≥20 words;
+- step 2 (13.10) — the turn is skipped on "writes for another" and on a repeat ≥30 words; the chat shows "⏭ (turn skipped…)". This is a crutch: the cause of copying is not removed.
+
+## 20.4 What Presses Down (09–10.10)
+
+- The Shadow advisor directive ("⚑ Important now," flag `SHADOW_DIRECTIVE_ENABLED=False`) was turned off — replies became livelier.
+- ~220 "What I know about myself" entries and beliefs about silence across three databases → `discredited`.
+- New `<inner>` mechanism: after replying, the persona answers herself "what do you think?" (prefill safeguard), log `logs/inner.jsonl`.
+- Found: `[observe:]` hadn't been saved since 13.08 — the block was overwritten by a `str_replace` during the 12.08 edit. Restored 13.10, separately from other changes so as not to mix effects.
+
+## 20.5 October Audit (11–12.10)
+
+Five Claude Code passes on the second machine (read-only, finding = file:line + commit + quote): losses by git, promised-but-not-done, marker map, uncalled functions, "what presses down."
+
+Mike's rule: **everything in the code is needed**; something disabled without a "why" comment is a bug — not to be deleted but restored. A design-intents registry `claude/DESIGN_INTENTS.md` and a deploy log `claude/DEPLOYED.md` were started.
+
+Replay 12.10: neither the model nor the new database rows cut reply length. Length dropped on 25.09 within 10 minutes of a conversation about "cloyingness" and set into the data through 4–5 channels (the persona's own notes, atomic_facts, Shadow beliefs and observations, history). Mike's decision: don't fix — it's the personas' experience. Lena's agreements were turned off, except #67 (an experiment).
+
+## 20.6 Background on the NAS — `lena/worker`
+
+Two containers were built on the Synology:
+- `lena/llama-cpu` — bge-m3 Q8 on CPU (no AVX), port 8092, not used yet;
+- `lena/worker` — background decays in real time rather than by harness ticks. Before, everything "in silence" was counted only while the app was running — and it runs only while Mike is around.
+
+Versions: 0.2.0 (12–13.10, first in shadow mode, then writing to the databases; the harness no longer decays anything), **0.3.0** (13.10, md5 `a1fb4b2f…`).
+
+| Job | Period | Parameters |
+|-----|--------|------------|
+| sins | every 5 min | — |
+| profile | hourly | half-life 900 days, grace 30, max_mentions 2, floor 0.1 |
+| atomic_facts | — | half-life 180 days, grace 60, floor 0.3 |
+| beliefs | — | 0.97/day, floor 0.3, discard 7 days |
+| importance | daily at 04:00 | half-life 14 days, floor 0.05 |
+| relations | hourly | return to 0.78: down with half-life 5 days, up after a quarrel — 7; persona0 skipped |
+
+On 13.10 sunken profile facts of all three were raised to 0.3 ("this is her life"); Lena's contradictions → `discredited`. "Verified facts" (atomic_facts) are now age-weighted (60 days): Lena's had been stuck since mid-June. Profile RAG threshold 0.55 + log.
+
+On 14.10 Lena's nightly importance pass hit the 300 s limit (hnsw index on `memory`). Mike set `fillfactor 85` + `VACUUM` — on 15.10 the pass took 102 s, and fit for everyone without a rebuild.
+
+## 20.7 Relations and the Word Dictionary (13.10)
+
+Relations were frozen at 1.00 for all three. Now the worker returns them to a base of 0.78 (one for everyone); growth from conversation is kept. Verified 14–15.10: 1.00 → 0.95 in two days, exactly per the formula.
+
+So that the same numbers sound different — a dictionary in `conversation.py` (one harness for all, typical shades):
+- `_intimacy_words` — tiers 0.95 / 0.85 / 0.75, below that the old wording;
+- `_humor_words` — ≥0.95 / ≥0.85 / 0.75–0.85 no line / <0.75 "not in the mood for jokes";
+- `_circadian_offsets` — morning 6–10: intimacy −0.05, humor −0.08; evening 20–01: intimacy +0.05.
+
+## 20.8 Sleep and Waking (13–15.10)
+
+- **Sleep** = an hour of silence (≥3600 s), measured in `_generate_reply` before `record_user_message`. Activity interrupts sleep.
+- On waking, `MemoryService.on_wake(sleep_seconds)` runs in a separate thread:
+  1. `apply_sleep_drift` — with 50% chance intimacy/humor −0..0.03, not below 0.80;
+  2. `should_dream_on_wake` — no more than once per ≥20 h, chance = hours/8, capped at 0.9;
+  3. `generate_dream(sleep_start, sleep_end)` — "You are {PERSONA_RU}," 5 recent scenes + 1 old one (>7 days) + 1 profile fact; `created_at` is the middle of the silence;
+  4. a thought of type `dream` with strength 0.45–0.80;
+  5. `dream_to_desire` — score 0.82, arousal +0.08.
+- A dream becomes a background thought. A strong one (SVZ ≥0.72) is told once and fades after one prompt; a weak one leaves quietly.
+- Works even after the app was off — the dream is computed retroactively.
+- Dreaming in heartbeat is disabled (`DREAM_IN_HEARTBEAT=False`, kept as a reserve).
+
+Check on 15.10 17:09, waking after 52 h: all three had different dreams and different desires (Lena — "to hear how the player's color changes"). Before this, dreams were synchronized, and everyone's prompt carried "Lena's dream."
+
+## 20.9 Other
+
+- Memory-write notices — yellow italics, visible only to Mike (13.10).
+- 17.10: Lena's personal chat had shown the Constellation login screen since 13.10 — two same-named `index.html` files got swapped during deploy. Fixed; rule — label the destination path of every same-named file.
+- Lena's anchors gained a dust allergy, cockroaches, "typos annoy me." Cockroaches worked immediately and in her own way; typos — zero across three wordings. A flick on the forehead in the history works better than a rule in the anchors.
+- A copy of LENA on the second machine (16 GB): Eira there, on the same model, is open and unconstrained. Control: dullness comes from the data and prompt assembly, not the model.
+- Silero TTS v5 added to plans for "the near future."
+
+## 20.10 Deployed (md5 as of 27.10, CODE_MAP git `beb4a0d`)
+
+| File | md5 |
+|------|-----|
+| `engine/conversation.py` | `49de726c9d183fcae6371e4ad82b7ef3` |
+| `engine/initiative.py` | `1940c32285227eeb26f47e68a916abc8` |
+| `memory/services.py` | `257e3644aa44f29d2889f56f70fe0769` |
+| `memory/scene_service.py` | `11f5881f757a899daeee4cc5d1d2b168` |
+| `relations/relations.py` | `f9513798b7f8e3a37215120180764f7b` |
+| `worker.py` (NAS) | `a1fb4b2ff24959f430c1ba6754457b70` |
+
+## 20.11 Looking Back (16–19.10)
+
+Two visible problems: repeating each other (closed with the turn-skip crutch) and a sense of a dead end in conversation — after flagship models the personas feel like "a child's craft project," and there are fewer and fewer topics. The sore points are **time** (the world doesn't change without Mike: "left at a tea party, found at the same tea party two days later") and **memory** (fragments of memories aren't connected). LENA is in the background for now, but for the first time she can live without Mike.
+
+Similar projects (Airis, ARIA and others) have gone quiet since summer. ARIA has useful ideas of "return" (a report after separation) and "similarity is not proof."
+
+## 20.12 Lessons of October
+
+1. On one LLM, three personas sound the same; they differ in content and memory, not manner.
+2. Copying comes from the neighbor's reply in the current round; the form is held by one's own history.
+3. A one-off remark becomes a standing rule within an evening, through 4–5 recording channels.
+4. An example in the history is stronger than a line in the prompt — for style and for time alike (unfinished tea beats a date).
+5. An anchor trait fires when the trigger is right there in the message.
+6. Mike's usage pattern (the app runs only while he's around) defines the background architecture: everything "in silence" is computed retroactively on waking, or on the NAS in real time.
+7. Disabled without a "why" comment is a bug, not a decision.
+
+## 20.13 What Remains Open (as of 30.10.2026)
+
+| Task | Description |
+|------|-------------|
+| "Won't let go — tell Mike" | repeats every prompt in ordinary conversation (Eia — two hours straight); awaiting design intent: fade after one breakthrough or lower to background |
+| Time | a "— N passed —" separator in the history and "while you were away" on waking — an idea |
+| Memory links | floating window (dead), thematic narrative (not started), `narrative_arc` (768) |
+| Dream tone (step 3) | bge-m3 → thought strength, morning mood, post-sleep drift |
+| Lena's "typos" trait | find a wording or hand it over to the girls |
+| Worker | chunked importance, daily profile/atomic passes — at the next rebuild |
+| Silero v5 | stage-direction asterisks must be stripped before synthesis |
+| Log truncation | `[:50]`/`[:60]` |
+| Harness | "Lena" in 4B judges and the summarizer, addressee in conductor, starting values, anxiety at world events |
+| Big | personality core, belief ripener, psychological resilience, dynamic context |
+
+---
+
+*Document current as of 30.10.2026. Next update — after November sessions.*
+*Generated with Claude Sonnet 4.6; sections 19–20 — Claude Opus 5.5*
