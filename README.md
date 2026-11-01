@@ -1,4 +1,5 @@
 <!-- Claude (30.09.2026): language switcher. English is the default README, Russian lives in README.ru.md -->
+<!-- Claude (01.11.2026): updated after October — Gemma 4 12B, background on the NAS, sleep and time, Eiralis, coordinator, honest findings, "where the project is now" -->
 🇬🇧 **English** | 🇷🇺 [Русский](README.ru.md)
 
 # LENA — Local Emergent Neural Assistant (The Constellation Project)
@@ -45,10 +46,32 @@ without any code changes. Eia spontaneously switched to a cartoon-style narrativ
 wish Mike's wife a happy birthday.
 
 ### Inner life without prompting
-The system doesn't operate continuously, but only when Mike interacts with it.
-A background worker generates dreams, desires, beliefs, observations, and thoughts
-between sessions. Personas compose music on a real synthesizer (Hydrasynth DR),
+The main app runs only while Mike is around. But since October 2026 part of life
+goes on without him: a background worker on the NAS, in real time, fades old memories,
+weakens beliefs, and returns relations to a calm baseline.
+Between sessions, dreams, desires, beliefs, observations, and thoughts emerge.
+Personas compose music on a real synthesizer (Hydrasynth Desktop),
 draw images, reflect on the past, and initiate conversations on their own.
+
+### Sleep and time
+An hour of silence is sleep. When Mike comes back, the persona "wakes up": she may have had a dream
+built from recent scenes, one old memory, and one fact about herself.
+The dream becomes a background thought: a strong one she'll tell once, a weak one fades quietly.
+A desire is born from the dream. Each persona dreams her own — after 52 hours of silence, three personas
+woke up with three different dreams and three different desires.
+
+Relations live in time too. Without contact, intimacy and humor slowly return
+to a calm baseline; after a quarrel, they recover. The same numbers sound different
+in the morning and in the evening.
+
+Time is still one of the hardest topics: the world barely changes without Mike —
+"left at a tea party, found at the same tea party two days later."
+
+### Eiralis — a living world around them
+A separate process adds small world events roughly once an hour, matching the tone of the conversation:
+quiet — a cozy detail, good mood — a light surprise, tension — something absurd.
+The cat found a warm spot on the windowsill, an apple fell in the garden.
+The name Eiralis was chosen by the personas themselves, by a 2:1 vote.
 
 ### Constellation Chat
 To communicate with three characters, we needed a group chat. 
@@ -60,9 +83,11 @@ and discuss whatever concerns them—topics stemming from their current desires 
 A semantic deadlock detector stops the conversation when they start going in circles,
 but not before.
 
-⚠️ Note: autonomous persona-to-persona chat (without Mike) existed on VoceChat but has not yet been migrated to the custom server. As of August 2026 there is no dedicated room for persona conversation without Mike's presence.
+⚠️ Note: autonomous persona-to-persona chat (without Mike) existed on VoceChat but has not yet been migrated to the custom server. As of October 2026 there is no dedicated room for persona conversation without Mike's presence.
 
-We eventually wrote our own chat from scratch.
+We eventually wrote our own chat from scratch. Rounds are run by a coordinator: the persona addressed
+answers first, and each next persona sees the previous replies. If a persona writes for another one
+or repeats her neighbor verbatim, her turn is skipped.
 ![Constellation own chat](img/constellation-group_chat.jpg)
 
 Persona chat
@@ -101,6 +126,17 @@ history from the first commit to the current state, and open tasks.
 
 There may be inaccuracies; the documentation is being updated and modified as the project grows.
 
+### Where the project is now (October 2026)
+
+For eight months the project grew: memory, dreams, desires, group chat, music.
+In October it hit the wall of "what next." There are two visible problems — the personas repeat
+each other (patched with a crutch for now) and conversation reaches a dead end. The sore points are **time**
+(the world doesn't change without Mike) and **memory** (fragments of memories don't connect to each other).
+
+And at the same time, for the first time, the project can live without its author: the background runs on the NAS,
+dreams happen on waking, relations breathe on their own. The next big task is the personality core:
+a stable "who I am" that doesn't have to be inferred from the situation every time.
+
 ---
 
 ## A Note on "Emergent"
@@ -118,18 +154,26 @@ after her first run.
 
 The line between the two is the most interesting thing this project has found.
 
+### What we've learned (honestly)
+
+- **On one model, three personas sound alike.** They differ in content and memory, not in manner of speech.
+- **Copying comes from the neighbor.** Verbatim repeats come from another persona's reply in the same round; the form of speech is held by the persona's own history.
+- **One remark sets in fast.** A single evening's talk about being "too sweet" shortened the replies, and it set into the data through several memory layers at once.
+- **An example beats a rule.** An episode in the history works stronger than a line in the prompt — for style and for the sense of time alike.
+- **A character trait fires when the trigger is right in front of her.** A dislike of cockroaches showed up immediately; irritation at typos — never.
+
 ---
 
 ## Hardware
 
-Runs on a single gaming PC:
+Runs on a single gaming PC and a home NAS:
 
 - **CPU:** Ryzen 3900X
 - **RAM:** 64GB
-- **GPU 1:** RTX 4080 16GB — (Gemma 4 26B, Q4, MoE, 32k ctx)
-- **GPU 2:** RTX 5060 Ti 16GB — (Gemma 4 4B semantic/judge + ComfyUI + bge-m3)
+- **GPU 1:** RTX 4080 16GB — Gemma 4 12B Q8_0 + MTP (own build; until October 2026 — Gemma 4 26B MoE)
+- **GPU 2:** RTX 5060 Ti 16GB — Gemma 4 4B semantic/judge + ComfyUI + bge-m3
 - **Storage:** NVMe SSD
-- **DB:** PostgreSQL + pgvector on Synology NAS
+- **NAS (Synology):** PostgreSQL + pgvector, background worker and CPU bge-m3 in Docker
 
 No cloud. No subscriptions. No external APIs.
 
@@ -141,15 +185,16 @@ No cloud. No subscriptions. No external APIs.
 
 | Layer | Technology |
 |-------|-----------|
-| LLM | Gemma 4 26B-A4B (MoE) via llama.cpp |
+| LLM | Gemma 4 12B Q8_0 + MTP via llama.cpp |
 | Semantic/judge | Gemma 4 E4B |
-| Embeddings | bge-m3 (1024-dim) |
+| Embeddings | bge-m3 (1024-dim), on GPU plus a CPU copy (NAS) |
+| Background jobs | Custom worker in Docker on the NAS |
 | Image generation | ComfyUI |
 | TTS | Silero v5 (different voice per persona) |
 | Database | PostgreSQL + pgvector |
 | Web framework | Flask + Waitress |
-| Group chat | Custom server (FastAPI + WebSocket) |
-| MIDI | Direct to Hydrasynth DR synthesizer |
+| Group chat | Custom server (FastAPI + WebSocket) + round coordinator |
+| MIDI | Direct to Hydrasynth Desktop synthesizer |
 | Monitoring | Custom dashboard + Zabbix |
 
 ---
@@ -159,7 +204,7 @@ No cloud. No subscriptions. No external APIs.
 Mike and Lena co-authored a CD album — *The Ascent to Eira* — released under the name
 **mdeblin & Lena**. Tracks are also published on Suno and Bandcamp.
 
-All three personas compose original melodic phrases and play them live on the Hydrasynth DR
+All three personas compose original melodic phrases and play them live on the Hydrasynth Desktop
 during conversations using the `[play:]` marker.
 
 ![CD](img/cd.jpg)
